@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { LayoutNode } from '@shared/types'
 import { panesOf, presetLayout, presetOf, PRESETS, type PresetName } from '../lib/layout'
+import { keysOf } from '../lib/keys'
 import { useStore } from '../store'
 
 type Box = { x: number; y: number; w: number; h: number }
@@ -70,18 +71,18 @@ function LayoutPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => vo
       <button className="menu-item" onClick={act(() => s.splitPane('right'))}>
         <span className="menu-check" />
         <span className="menu-label">Split to the right</span>
-        <span className="menu-key">Ctrl+\</span>
+        <span className="menu-key">{keysOf('splitRight', s.settings.keys)}</span>
       </button>
       <button className="menu-item" onClick={act(() => s.splitPane('bottom'))}>
         <span className="menu-check" />
         <span className="menu-label">Split down</span>
-        <span className="menu-key">Ctrl+Shift+\</span>
+        <span className="menu-key">{keysOf('splitDown', s.settings.keys)}</span>
       </button>
       <button className="menu-item" disabled={!multi} onClick={act(() => s.closePane())}>
         <span className="menu-check" />
         <span className="menu-label">Close this pane</span>
       </button>
-      <p className="layout-tip">Drag a tab onto a pane to show it there, or onto a pane's edge to split it. Ctrl+Alt+arrows move between panes.</p>
+      <p className="layout-tip">Drag a tab onto a pane to show it there, or onto a pane's edge to split it. {keysOf('nextPane', s.settings.keys)} and {keysOf('prevPane', s.settings.keys)} move between panes.</p>
     </div>,
     document.body
   )

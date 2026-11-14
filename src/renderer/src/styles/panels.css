@@ -881,8 +881,74 @@
   height: 32px;
 }
 
+/* A section's heading with something to do beside it */
+.set-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.set-lede {
+  max-width: 62ch;
+  margin: 0 0 12px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* The heading's own space below goes to the row, so the button beside it sits level */
+.set-heading h2 {
+  margin-bottom: 0;
+}
+
 .keys {
   margin: 0;
+}
+
+.key-row dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.key-row dd {
+  align-items: center;
+}
+
+/* Where a shortcut acts, when not everywhere */
+.key-where {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.key-problem {
+  flex-basis: 100%;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.key-row.is-recording {
+  box-shadow: inset 2px 0 0 var(--light);
+  padding-left: 10px;
+}
+
+.key-waiting {
+  color: var(--light);
+  font-size: 12.5px;
+}
+
+.key-change {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.key-row.is-fixed dt,
+.key-row.is-fixed kbd {
+  color: var(--text-3);
 }
 
 .key-row {

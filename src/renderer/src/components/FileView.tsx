@@ -1,6 +1,7 @@
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { FileTab } from '@shared/types'
+import { isShortcut, useKeys } from '../lib/keys'
 import { languageFor, relPath } from '../lib/paths'
 import { monaco } from '../lib/monaco'
 import { fileSavers, liveDrafts, useStore } from '../store'
@@ -36,6 +37,7 @@ function TextFileView({ tab, active, visible = active }: { tab: FileTab; active:
   const [saveError, setSaveError] = useState<string | null>(null)
   const project = useStore((s) => s.projects.find((p) => p.id === tab.projectId))
   const dirty = useStore((s) => !!s.dirtyFiles[tab.id])
+  const saveKeys = useKeys('saveFile')
 
   const setDirty = useCallback(
     (d: boolean) => {
@@ -182,11 +184,12 @@ function TextFileView({ tab, active, visible = active }: { tab: FileTab; active:
     setSaveError(null)
   }, [read, setDirty])
 
-  // Ctrl+S
+  // Save (Ctrl+S unless changed in Settings)
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS' && !useStore.getState().confirm) {
+      const st = useStore.getState()
+      if (isShortcut(e, 'saveFile', st.settings.keys) && !st.confirm && !st.recordingKeys) {
         e.preventDefault()
         void save()
       }
@@ -246,7 +249,7 @@ function TextFileView({ tab, active, visible = active }: { tab: FileTab; active:
         <button className="icon-btn" title="Show in File Explorer" onClick={() => void window.loom.reveal(tab.path)}>
           <FolderOpen />
         </button>
-        <button className="btn" disabled={!dirty || saving} onClick={() => void save()} title="Save (Ctrl+S)">
+        <button className="btn" disabled={!dirty || saving} onClick={() => void save()} title={`Save (${saveKeys})`}>
           <Save /> {saving ? 'Saving' : dirty ? 'Save' : 'Saved'}
         </button>
       </div>

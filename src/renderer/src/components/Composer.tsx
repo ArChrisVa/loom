@@ -1,4 +1,5 @@
 import { ArrowUp, Cpu, Gauge, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
+import { isShortcut, useKeys } from '../lib/keys'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
 import { EMPTY_CHAT, useStore } from '../store'
@@ -163,6 +164,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
   const knownModels = useStore((st) => st.knownModels)
   const settings = useStore((st) => st.settings)
+  const backgroundKeys = useKeys('sendBackground')
   const defaultEffort = useStore((st) => st.info?.defaultEffort ?? null)
   const [text, setText] = useState(chat.draft || tab.draft || '')
   const images = chat.attachments
@@ -322,7 +324,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
       s.interrupt(tab.id)
       return
     }
-    if (e.key === 'Enter' && e.altKey && !e.shiftKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
+    if (isShortcut(e.nativeEvent, 'sendBackground', settings.keys) && !e.nativeEvent.isComposing) {
       e.preventDefault()
       submit(true)
       return
@@ -493,7 +495,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
           ) : null}
           <button
             className="send to-back"
-            title="Send to background (Alt+Enter): Claude hands it to a background agent, and you keep chatting while it works"
+            title={`Send to background (${backgroundKeys}): Claude hands it to a background agent, and you keep chatting while it works`}
             aria-label="Send to background"
             disabled={!text.trim() || chat.moving || isUsageCommand(text)}
             onClick={() => submit(true)}

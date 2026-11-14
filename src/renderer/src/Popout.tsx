@@ -6,6 +6,7 @@ import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
 import { UsagePopover } from './components/StatusBar'
 import { FileDropHint, useFileDrop } from './components/FileDrop'
+import { shortcutOf, useKeys } from './lib/keys'
 import { TabContent } from './components/Workspace'
 import { startRemoteAgent } from './remoteAgent'
 import { useStore } from './store'
@@ -18,12 +19,16 @@ export function Popout(): ReactNode {
   const ready = useStore((s) => s.ready)
   const tab = useStore((s) => s.tabs[0])
   const project = useStore((s) => s.projects.find((p) => p.id === tab?.projectId))
+  const closeKeys = useKeys('closeTab')
   useFileDrop()
 
   useEffect(() => {
     void useStore.getState().init().then(startRemoteAgent)
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyW' && !useStore.getState().confirm) {
+      const s = useStore.getState()
+      if (s.confirm) return
+      const id = shortcutOf(e, s.settings.keys)
+      if (id === 'closeTab') {
         e.preventDefault()
         window.close()
       }
@@ -45,7 +50,7 @@ export function Popout(): ReactNode {
         {project ? <span className="popout-project">{project.name}</span> : null}
         <span className="popout-title">{tab.title}</span>
         <span className="popout-spacer" />
-        <button className="icon-btn topbar-btn" title="Move back to the main window (Ctrl+W)" onClick={() => window.close()}>
+        <button className="icon-btn topbar-btn" title={`Move back to the main window (${closeKeys})`} onClick={() => window.close()}>
           <SquareArrowDownLeft />
         </button>
         <div className="window-controls-space" />

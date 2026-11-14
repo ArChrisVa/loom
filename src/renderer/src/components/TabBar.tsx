@@ -2,6 +2,7 @@ import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Tab } from '@shared/types'
 import { inFileRow, paneOfTab } from '../lib/layout'
+import { keysOf } from '../lib/keys'
 import { chatWorking, useStore, type MenuItem } from '../store'
 import { LayoutButton } from './LayoutMenu'
 import { ProjectMark } from './ProjectMark'
@@ -118,7 +119,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
         disabled: rowIndex === sameRow.length - 1,
         onSelect: () => void s.requestClose(sameRow.slice(rowIndex + 1).map((t) => t.id))
       },
-      { label: 'Reopen closed tab (Ctrl+Shift+T)', disabled: !s.closedTabs.length, onSelect: () => s.reopenClosed() },
+      { label: `Reopen closed tab (${keysOf('reopenTab', s.settings.keys)})`, disabled: !s.closedTabs.length, onSelect: () => s.reopenClosed() },
       { separator: true, label: '' },
       ...(detached
         ? [{ label: 'Move back to this window', onSelect: () => void window.loom.popoutClose(tab.id) }]
@@ -239,7 +240,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
         {dirty ? <span className="dot dot-text" title="Unsaved changes" /> : null}
         <button
           className="tab-close"
-          title="Close (Ctrl+W)"
+          title={`Close (${keysOf('closeTab', s.settings.keys)})`}
           onClick={(e) => {
             e.stopPropagation()
             void s.requestClose([tab.id])
@@ -285,7 +286,7 @@ export function TabBar(): ReactNode {
   return (
     <header className="topbar">
       {!s.sidebarOpen ? (
-        <button className="icon-btn topbar-btn" title="Show sidebar (Ctrl+B)" onClick={() => s.set({ sidebarOpen: true })}>
+        <button className="icon-btn topbar-btn" title={`Show sidebar (${keysOf('toggleSidebar', s.settings.keys)})`} onClick={() => s.set({ sidebarOpen: true })}>
           <PanelLeft />
         </button>
       ) : null}
@@ -316,7 +317,7 @@ export function TabBar(): ReactNode {
       <LayoutButton />
       <button
         className={`icon-btn topbar-btn${s.rightPanelOpen ? ' on' : ''}`}
-        title="Files and Claude settings (Ctrl+Alt+B)"
+        title={`Files and Claude settings (${keysOf('togglePanel', s.settings.keys)})`}
         onClick={() => s.set({ rightPanelOpen: !s.rightPanelOpen })}
       >
         <PanelRight />

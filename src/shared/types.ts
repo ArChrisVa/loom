@@ -268,6 +268,8 @@ export interface LoomSettings {
   defaultPermissionMode: PermissionMode | null
   newChatModel?: string | null
   newChatEffort?: EffortLevel | null
+  /** Shortcuts changed in Settings, by what they do: { closeTab: "Ctrl+Q" }. The rest keep their defaults. */
+  keys?: Record<string, string>
   /** The last version whose What's new was shown (or skipped, on a first install) */
   lastSeenVersion?: string
   notifyWhenDone: boolean

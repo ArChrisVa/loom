@@ -144,6 +144,8 @@ The first launch walks through signing in to Claude, adding projects and choosin
 | Stop Claude | Esc anywhere in the chat |
 | Save a file | Ctrl+S |
 
+Every shortcut can be changed in Settings, Keyboard: click Change and press the keys you want.
+
 ## Good to know
 
 - **One chat, one app at a time.** Don't continue the same chat in Loom and somewhere else at once: both write to the same history file.

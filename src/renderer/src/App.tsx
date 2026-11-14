@@ -10,6 +10,7 @@ import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
+import { shortcutOf } from './lib/keys'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { startRemoteAgent } from './remoteAgent'
@@ -17,82 +18,86 @@ import { tabsInOrder, useStore } from './store'
 import wordmark from './assets/brand/loom-wordmark.webp'
 import wordmark2x from './assets/brand/loom-wordmark@2x.webp'
 
-/**
- * The key a shortcut means, by its place on the keyboard: with a Greek layout active, Ctrl+W
- * reports the letter "ς", but it is still the W key.
- */
-export function shortcutKey(e: KeyboardEvent): string {
-  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3).toLowerCase()
-  if (/^Digit\d$/.test(e.code)) return e.code.slice(5)
-  if (e.code === 'Backquote') return '`'
-  if (e.code === 'Comma') return ','
-  return e.key.toLowerCase()
-}
-
+// Shortcuts are listed in lib/keys.ts with their default keys; Settings can change them. They are
+// matched by where a key sits on the keyboard, so Ctrl+W is the same key under a Greek layout.
 function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const s = useStore.getState()
-      if (s.confirm) return
+      if (s.confirm || s.recordingKeys) return
       const tab = s.tabs.find((t) => t.id === s.activeTabId)
-      const ctrl = e.ctrlKey || e.metaKey
-      if (!ctrl) return
-      const key = shortcutKey(e)
-      if (e.code === 'Backslash') {
-        // Ctrl+\ splits to the right, Ctrl+Shift+\ splits down.
-        e.preventDefault()
-        s.splitPane(e.shiftKey ? 'bottom' : 'right')
-      } else if (e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        const list = panesOf(s.layout)
-        if (list.length < 2) return
-        e.preventDefault()
-        const i = list.findIndex((p) => p.id === s.focusedPane)
-        const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : list.length - 1
-        s.focusPane(list[(i + step) % list.length].id)
-      } else if (key === 'tab') {
-        e.preventDefault()
+      const tabStep = (by: 1 | -1): void => {
         // In the order the tabs are shown, past the ones living in a window of their own.
         const list = tabsInOrder(s.tabs).filter((t) => !s.detached[t.id] || t.id === s.activeTabId)
         if (!list.length) return
         const i = list.findIndex((t) => t.id === s.activeTabId)
-        const next = list[(i + (e.shiftKey ? list.length - 1 : 1) + list.length) % list.length]
-        s.activate(next.id)
-      } else if (key === 'w' && !e.shiftKey) {
-        e.preventDefault()
-        if (tab) void s.requestClose([tab.id])
-        else if (panesOf(s.layout).length > 1) s.closePane()
-      } else if (key === 't' && e.shiftKey) {
-        e.preventDefault()
-        s.reopenClosed()
-      } else if (key === 't' && !e.shiftKey) {
-        e.preventDefault()
-        s.newChat(tab?.projectId ?? s.projects[0]?.id ?? null)
-      } else if (key === 'p' && !e.shiftKey) {
-        e.preventDefault()
-        s.set({ quickOpen: !s.quickOpen })
-      } else if (key === 'o' && !e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        void s.pickAndOpenFiles()
-      } else if (key === '`') {
-        e.preventDefault()
-        s.newTerminal(tab?.projectId ?? null)
-      } else if (key === 'b' && e.altKey) {
-        e.preventDefault()
-        s.set({ rightPanelOpen: !s.rightPanelOpen })
-      } else if (key === 'b') {
-        e.preventDefault()
-        s.set({ sidebarOpen: !s.sidebarOpen })
-      } else if (key === ',') {
-        e.preventDefault()
-        s.openSettings()
-      } else if (/^[1-9]$/.test(key) && !e.altKey && !e.shiftKey) {
-        const list = tabsInOrder(s.tabs)
-        const t = list[key === '9' ? list.length - 1 : Number(key) - 1]
-        if (t) {
-          e.preventDefault()
+        s.activate(list[(i + by + list.length) % list.length].id)
+      }
+      const paneStep = (by: 1 | -1): boolean => {
+        const list = panesOf(s.layout)
+        if (list.length < 2) return false
+        const i = list.findIndex((p) => p.id === s.focusedPane)
+        s.focusPane(list[(i + by + list.length) % list.length].id)
+        return true
+      }
+      switch (shortcutOf(e, s.settings.keys)) {
+        case 'splitRight':
+          s.splitPane('right')
+          break
+        case 'splitDown':
+          s.splitPane('bottom')
+          break
+        case 'nextPane':
+          if (!paneStep(1)) return
+          break
+        case 'prevPane':
+          if (!paneStep(-1)) return
+          break
+        case 'nextTab':
+          tabStep(1)
+          break
+        case 'prevTab':
+          tabStep(-1)
+          break
+        case 'closeTab':
+          if (tab) void s.requestClose([tab.id])
+          else if (panesOf(s.layout).length > 1) s.closePane()
+          break
+        case 'reopenTab':
+          s.reopenClosed()
+          break
+        case 'newChat':
+          s.newChat(tab?.projectId ?? s.projects[0]?.id ?? null)
+          break
+        case 'quickOpen':
+          s.set({ quickOpen: !s.quickOpen })
+          break
+        case 'openFile':
+          void s.pickAndOpenFiles()
+          break
+        case 'newTerminal':
+          s.newTerminal(tab?.projectId ?? null)
+          break
+        case 'togglePanel':
+          s.set({ rightPanelOpen: !s.rightPanelOpen })
+          break
+        case 'toggleSidebar':
+          s.set({ sidebarOpen: !s.sidebarOpen })
+          break
+        case 'settings':
+          s.openSettings()
+          break
+        default: {
+          // Ctrl+1 to Ctrl+9 go to a tab by its place; 9 is the last one. These stay as they are.
+          // Saving a file and sending to the background are handled where they happen.
+          if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || !/^Digit[1-9]$/.test(e.code)) return
+          const list = tabsInOrder(s.tabs)
+          const t = list[e.code === 'Digit9' ? list.length - 1 : Number(e.code.slice(5)) - 1]
+          if (!t) return
           s.activate(t.id)
         }
       }
+      e.preventDefault()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)

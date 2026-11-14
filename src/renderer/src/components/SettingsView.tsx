@@ -1,4 +1,5 @@
-import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
+import { BellRing, LogIn, LogOut, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import { comboOf, keysOf, SHORTCUTS, whyNot, type KeyChoices, type ShortcutId } from '../lib/keys'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
@@ -225,6 +226,114 @@ function NewChatRows({ model, effort, update }: { model: string | null | undefin
   )
 }
 
+/**
+ * Every shortcut with the keys it has, each changeable: Change waits for the next combination and
+ * takes it unless it would get in the way of typing, belongs to every app (copy, paste), or is
+ * another shortcut already. The keys that are not Loom's to move are listed below them.
+ */
+function KeyboardSettings({ chosen, sendWithCtrlEnter, update }: { chosen: KeyChoices | undefined; sendWithCtrlEnter: boolean; update: (patch: Partial<LoomSettings>) => void }): ReactNode {
+  const [recording, setRecording] = useState<ShortcutId | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!recording) return
+    // The app's own shortcuts stand down while a combination is being chosen.
+    useStore.setState({ recordingKeys: true })
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      const combo = comboOf(e)
+      // Ctrl, Alt or Shift on their own: still waiting for the key.
+      if (!combo) return
+      if (combo === 'Esc') {
+        setRecording(null)
+        setProblem(null)
+        return
+      }
+      const why = whyNot(combo, recording, chosen)
+      if (why) return setProblem(why)
+      const next = { ...chosen }
+      if (combo === SHORTCUTS.find((s) => s.id === recording)!.keys) delete next[recording]
+      else next[recording] = combo
+      update({ keys: next as Record<string, string> })
+      setRecording(null)
+      setProblem(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      useStore.setState({ recordingKeys: false })
+    }
+  }, [recording, chosen])
+
+  const changed = SHORTCUTS.filter((s) => chosen?.[s.id])
+  const reset = (id: ShortcutId): void => {
+    const next = { ...chosen }
+    delete next[id]
+    update({ keys: next as Record<string, string> })
+  }
+  return (
+    <section className="set-section">
+      <div className="set-heading">
+        <h2>Keyboard</h2>
+        {changed.length ? (
+          <button className="btn ghost" onClick={() => update({ keys: {} })}>
+            <RotateCcw /> Reset all
+          </button>
+        ) : null}
+      </div>
+      <p className="set-lede">Click Change, then press the keys you want. Keys are read by where they sit on the keyboard, so they work the same in any language layout.</p>
+      <dl className="keys">
+        {SHORTCUTS.map((s) => {
+          const on = recording === s.id
+          return (
+            <div key={s.id} className={`key-row${on ? ' is-recording' : ''}`} data-shortcut={s.id}>
+              <dt>
+                {s.label}
+                {s.where ? <span className="key-where">{s.where}</span> : null}
+                {on && problem ? (
+                  <span className="key-problem" role="alert">
+                    {problem}
+                  </span>
+                ) : null}
+              </dt>
+              <dd>
+                {on ? <span className="key-waiting">Press the new keys, or Esc to keep these</span> : <kbd>{keysOf(s.id, chosen)}</kbd>}
+                {chosen?.[s.id] && !on ? (
+                  <button className="icon-btn small" title={`Back to ${s.keys}`} aria-label={`Reset ${s.label} to ${s.keys}`} onClick={() => reset(s.id)}>
+                    <RotateCcw />
+                  </button>
+                ) : null}
+                <button
+                  className="btn ghost key-change"
+                  onClick={() => {
+                    setProblem(null)
+                    setRecording(on ? null : s.id)
+                  }}
+                >
+                  {on ? 'Cancel' : 'Change'}
+                </button>
+              </dd>
+            </div>
+          )
+        })}
+        {[
+          ['Go to a tab by its place', 'Ctrl+1 to Ctrl+9'],
+          ['Stop Claude', 'Esc'],
+          ['Send a message', sendWithCtrlEnter ? 'Ctrl+Enter' : 'Enter']
+        ].map(([what, keys]) => (
+          <div key={what} className="key-row is-fixed">
+            <dt>{what}</dt>
+            <dd>
+              <kbd>{keys}</kbd>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }): ReactNode {
   return (
     <div className="set-row">
@@ -420,31 +529,7 @@ export function SettingsView(): ReactNode {
           </section>
         ) : null}
 
-        <section className="set-section">
-          <h2>Keyboard</h2>
-          <dl className="keys">
-            {[
-              ['New chat in this project', 'Ctrl+T'],
-              ['Close tab', 'Ctrl+W'],
-              ['Next and previous tab', 'Ctrl+Tab, Ctrl+Shift+Tab'],
-              ['Open a file', 'Ctrl+P'],
-              ['New terminal', 'Ctrl+`'],
-              ['Show or hide the sidebar', 'Ctrl+B'],
-              ['Files and Claude panel', 'Ctrl+Alt+B'],
-              ['Stop Claude', 'Esc in the message box'],
-              ['Save a file', 'Ctrl+S']
-            ].map(([what, keys]) => (
-              <div key={what} className="key-row">
-                <dt>{what}</dt>
-                <dd>
-                  {keys.split(', ').map((k) => (
-                    <kbd key={k}>{k}</kbd>
-                  ))}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <KeyboardSettings chosen={st.keys} sendWithCtrlEnter={st.sendWithCtrlEnter} update={update} />
       </div>
     </div>
   )

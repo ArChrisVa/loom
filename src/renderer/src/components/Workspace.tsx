@@ -2,6 +2,7 @@ import { FolderPlus, MessageSquarePlus, X } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { LayoutNode, Tab } from '@shared/types'
 import { paneOfTab, panesOf, type Edge, type Pane, type Split } from '../lib/layout'
+import { useKeys } from '../lib/keys'
 import { projectForPath } from '../lib/paths'
 import { useResizing } from '../lib/resizing'
 import { isOverlayTab, useStore } from '../store'
@@ -241,6 +242,7 @@ export function Workspace(): ReactNode {
   const dragging = useStore((s) => s.draggingTab)
   const detached = useStore((s) => s.detached)
   const activeTabId = useStore((s) => s.activeTabId)
+  const closeKeys = useKeys('closeTab')
   const main = useRef<HTMLElement>(null)
   const [full, setFull] = useState<Rect | null>(null)
   const [rects, setRects] = useState<Record<string, Rect>>({})
@@ -318,7 +320,7 @@ export function Workspace(): ReactNode {
                 // With the screen split, each pane closes what it shows from its own corner.
                 <button
                   className="icon-btn small pane-close"
-                  title={`Close ${t.title}${focused ? ' (Ctrl+W)' : ''}`}
+                  title={`Close ${t.title}${focused ? ` (${closeKeys})` : ''}`}
                   aria-label={`Close ${t.title}`}
                   onClick={() => void useStore.getState().requestClose([t.id])}
                 >

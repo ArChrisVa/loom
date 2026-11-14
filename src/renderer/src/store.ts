@@ -275,6 +275,8 @@ interface Store extends PersistedState {
   remote: RemoteStatus | null
   history: string[]
   quickOpen: boolean
+  /** Settings is waiting for a key combination: shortcuts stand down meanwhile */
+  recordingKeys: boolean
   editingProjectId: string | null
   editingGroupId: string | null
 
@@ -526,6 +528,7 @@ export const useStore = create<Store>((set, get) => {
     remote: null,
     history: [],
     quickOpen: false,
+    recordingKeys: false,
     editingProjectId: null,
     editingGroupId: null,
 
