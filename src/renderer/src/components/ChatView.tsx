@@ -87,6 +87,10 @@ function PinnedPrompt({ text, images, ts, pinned, onReveal, onStep }: { text: st
     <div className="pinned-slot">
       <div className="pinned-prompt">
         <div className="pinned-row">
+          <button className="pinned-text" title={text.length > 600 ? `${text.slice(0, 600)}…` : text || 'Show this message'} onClick={onReveal}>
+            <span>{words}</span>
+          </button>
+          {/* Last in the row, at the column's edge: the arrows stay put whatever the message's length. */}
           <div className="pinned-nav">
             {when ? <span className="pinned-when">{when}</span> : null}
             <button className="icon-btn small" title="Your message before this one" aria-label="Your message before this one" disabled={pinned.index === 0} onClick={() => onStep(-1)}>
@@ -96,9 +100,6 @@ function PinnedPrompt({ text, images, ts, pinned, onReveal, onStep }: { text: st
               <ChevronDown />
             </button>
           </div>
-          <button className="pinned-text" title={text.length > 600 ? `${text.slice(0, 600)}…` : text || 'Show this message'} onClick={onReveal}>
-            <span>{words}</span>
-          </button>
         </div>
       </div>
     </div>
