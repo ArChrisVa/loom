@@ -1,10 +1,10 @@
-import { BellRing, LogIn, LogOut, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSquare, Play, RefreshCw, RotateCcw, Smartphone, SquareTerminal } from 'lucide-react'
 import { comboOf, keysOf, SHORTCUTS, whyNot, type KeyChoices, type ShortcutId } from '../lib/keys'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
-import { useStore } from '../store'
+import { useStore, type SettingsSection } from '../store'
 import { ALL_EFFORTS, EFFORT_LABELS, MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
 import { ServiceAccounts } from './Accounts'
@@ -373,6 +373,82 @@ function updateLine(u: UpdateStatus): string {
   }
 }
 
+const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
+  { id: 'accounts', label: 'Accounts', icon: <CircleUser /> },
+  { id: 'claude', label: 'Claude', icon: <MessagesSquare /> },
+  { id: 'notifications', label: 'Notifications', icon: <Bell /> },
+  { id: 'keyboard', label: 'Keyboard', icon: <Keyboard /> },
+  { id: 'phone', label: 'Phone access', icon: <Smartphone /> },
+  { id: 'terminal', label: 'Terminal', icon: <SquareTerminal /> },
+  { id: 'about', label: 'About', icon: <Info /> }
+]
+
+/**
+ * The browser steps along a row of tabs by itself (focusgroup: left, right, Home, End) and keeps
+ * the one Tab stop. Up and down, for the list down the side, are done here, as is everything
+ * where the browser does none of it.
+ */
+const NATIVE_TABS = 'focusGroup' in HTMLElement.prototype
+
+/**
+ * The sections of Settings, down the left: one shows at a time. As tabs go, the arrow keys move
+ * between them and the section follows.
+ */
+function SectionNav({ sections, current }: { sections: typeof SECTIONS; current: SettingsSection }): ReactNode {
+  const pick = (id: SettingsSection): void => useStore.setState({ settingsSection: id })
+  const list = useRef<HTMLDivElement>(null)
+  // On a narrow window the tabs sit in one row that scrolls: the chosen one stays in view.
+  useEffect(() => {
+    list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [current])
+  const byHand = (e: React.KeyboardEvent): void => {
+    if (NATIVE_TABS && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const i = sections.findIndex((x) => x.id === current)
+    const to =
+      e.key === 'ArrowDown' || e.key === 'ArrowRight'
+        ? (i + 1) % sections.length
+        : e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+          ? (i - 1 + sections.length) % sections.length
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? sections.length - 1
+              : -1
+    if (to < 0) return
+    e.preventDefault()
+    list.current?.querySelector<HTMLElement>(`#set-tab-${sections[to].id}`)?.focus()
+  }
+  return (
+    <nav className="set-nav">
+      <h1>Settings</h1>
+      <div ref={list} className="set-tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical" onKeyDown={byHand} {...{ focusgroup: 'tablist nomemory' }}>
+        {sections.map((x) => {
+          const on = x.id === current
+          return (
+            <button
+              key={x.id}
+              type="button"
+              id={`set-tab-${x.id}`}
+              role="tab"
+              className="set-tab"
+              aria-selected={on}
+              // Where the browser steps between the tabs itself, it also keeps the one Tab stop.
+              tabIndex={NATIVE_TABS ? undefined : on ? 0 : -1}
+              onClick={() => pick(x.id)}
+              // Selection follows the keyboard: arrowing to a tab shows its section.
+              onFocus={() => pick(x.id)}
+              {...(on ? { focusgroupstart: '' } : {})}
+            >
+              {x.icon}
+              <span>{x.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
+
 export function SettingsView(): ReactNode {
   const s = useStore()
   const st = s.settings
@@ -392,17 +468,23 @@ export function SettingsView(): ReactNode {
     { value: 'custom', label: 'Another program', detail: 'Pick a claude.exe below' }
   ]
 
-  return (
-    <div className="settings">
-      <div className="settings-inner">
-        <h1>Settings</h1>
+  // Phone access shows once Loom knows its state; About once it knows its version.
+  const sections = SECTIONS.filter((x) => (x.id === 'phone' ? !!s.remote : x.id === 'about' ? !!s.update : true))
+  const current = sections.some((x) => x.id === s.settingsSection) ? s.settingsSection : sections[0].id
 
+  let page: ReactNode
+  switch (current) {
+    case 'accounts':
+      page = (
         <section className="set-section">
           <h2>Accounts</h2>
           <AccountRow />
           <ServiceAccounts />
         </section>
-
+      )
+      break
+    case 'claude':
+      page = (
         <section className="set-section">
           <h2>Claude</h2>
           <Row title="Program that runs your chats" hint="Every option uses your Claude Code sign-in, settings, skills and hooks. Changes apply to chats you start or restart from now on.">
@@ -438,10 +520,7 @@ export function SettingsView(): ReactNode {
               ) : null}
             </div>
           </Row>
-          <Row
-            title="Permission mode for new chats"
-            hint="What Claude may do without asking, in a new chat. Changing the mode in a chat changes that chat only."
-          >
+          <Row title="Permission mode for new chats" hint="What Claude may do without asking, in a new chat. Changing the mode in a chat changes that chat only.">
             <Dropdown<PermissionMode | 'settings'>
               value={st.defaultPermissionMode ?? 'settings'}
               options={[{ value: 'settings', label: 'Follow my Claude settings', description: 'Uses defaultMode from settings.json' }, ...MODE_OPTIONS]}
@@ -469,13 +548,6 @@ export function SettingsView(): ReactNode {
               </button>
             </div>
           </Row>
-          <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
-        </section>
-
-        <PhoneAccess />
-
-        <section className="set-section">
-          <h2>Backups</h2>
           <Row
             title="Keep copies of moved chats"
             hint="Moving a chat to another project keeps a copy of the original in .claude\chat-backups, in your user folder. Copies older than this are deleted for good."
@@ -495,16 +567,24 @@ export function SettingsView(): ReactNode {
             />
           </Row>
         </section>
-
+      )
+      break
+    case 'notifications':
+      page = (
         <section className="set-section">
-          <h2>Getting started</h2>
-          <Row title="The first-launch steps" hint="Signing in to Claude, adding projects, and how much Claude does without asking.">
-            <button className="btn" onClick={() => s.openStart()}>
-              Show the steps
-            </button>
-          </Row>
+          <h2>Notifications</h2>
+          <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
         </section>
-
+      )
+      break
+    case 'keyboard':
+      page = <KeyboardSettings chosen={st.keys} sendWithCtrlEnter={st.sendWithCtrlEnter} update={update} />
+      break
+    case 'phone':
+      page = <PhoneAccess />
+      break
+    case 'terminal':
+      page = (
         <section className="set-section">
           <h2>Terminal</h2>
           <Row title="Shell" hint="Used for new terminal tabs.">
@@ -519,35 +599,46 @@ export function SettingsView(): ReactNode {
             />
           </Row>
         </section>
-
-        {s.update ? (
-          <section className="set-section">
-            <h2>About</h2>
-            <Row title={`Loom ${s.update.version}`} hint={updateLine(s.update)}>
-              {/* What's new for every copy; updating only where Loom updates itself (not from source). */}
-              <div className="set-actions">
-                {!s.update.enabled ? null : s.update.state === 'ready' ? (
-                  <button className="btn primary" onClick={() => void window.loom.updateInstall()}>
-                    Restart to update
-                  </button>
-                ) : (
-                  <button
-                    className="btn"
-                    disabled={s.update.state === 'checking' || s.update.state === 'downloading'}
-                    onClick={() => void window.loom.updateCheck()}
-                  >
-                    Check for updates
-                  </button>
-                )}
-                <button className="btn ghost" onClick={() => s.showWhatsNew()}>
-                  What&apos;s new
+      )
+      break
+    case 'about':
+      page = s.update ? (
+        <section className="set-section">
+          <h2>About</h2>
+          <Row title={`Loom ${s.update.version}`} hint={updateLine(s.update)}>
+            {/* What's new for every copy; updating only where Loom updates itself (not from source). */}
+            <div className="set-actions">
+              {!s.update.enabled ? null : s.update.state === 'ready' ? (
+                <button className="btn primary" onClick={() => void window.loom.updateInstall()}>
+                  Restart to update
                 </button>
-              </div>
-            </Row>
-          </section>
-        ) : null}
+              ) : (
+                <button className="btn" disabled={s.update.state === 'checking' || s.update.state === 'downloading'} onClick={() => void window.loom.updateCheck()}>
+                  Check for updates
+                </button>
+              )}
+              <button className="btn ghost" onClick={() => s.showWhatsNew()}>
+                What&apos;s new
+              </button>
+            </div>
+          </Row>
+          <Row title="The first-launch steps" hint="Signing in to Claude, adding projects, and how much Claude does without asking.">
+            <button className="btn" onClick={() => s.openStart()}>
+              Show the steps
+            </button>
+          </Row>
+        </section>
+      ) : null
+      break
+  }
 
-        <KeyboardSettings chosen={st.keys} sendWithCtrlEnter={st.sendWithCtrlEnter} update={update} />
+  return (
+    <div className="settings">
+      <div className="settings-inner">
+        <SectionNav sections={sections} current={current} />
+        <div className="set-page" role="tabpanel" aria-labelledby={`set-tab-${current}`} data-section={current}>
+          {page}
+        </div>
       </div>
     </div>
   )

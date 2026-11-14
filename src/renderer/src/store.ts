@@ -242,6 +242,8 @@ interface Store extends PersistedState {
   /** Bumped when files may have changed, so open folders in the Files panel read again */
   treeVersion: number
   toasts: { id: string; text: string }[]
+  /** Which part of Settings is showing */
+  settingsSection: SettingsSection
   layout: LayoutNode
   /** The pane you're working in: the tab bar and new tabs act on it. */
   focusedPane: string
@@ -317,7 +319,8 @@ interface Store extends PersistedState {
   moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
   openFile: (path: string, projectId?: string | null) => void
   newTerminal: (projectId: string | null, cwd?: string) => void
-  openSettings: () => void
+  /** Opens Settings, on the given part when one is named */
+  openSettings: (section?: SettingsSection) => void
   /** The getting-started steps, in a tab of their own. */
   openStart: () => void
   /** Runs Anthropic's Claude Code installer in a terminal beside the getting-started steps. */
@@ -404,6 +407,9 @@ interface Store extends PersistedState {
   reloadApp: () => Promise<void>
   requestDeleteGroup: (id: string) => Promise<void>
 }
+
+/** The parts of Settings, in the order they are listed */
+export type SettingsSection = 'accounts' | 'claude' | 'notifications' | 'keyboard' | 'phone' | 'terminal' | 'about'
 
 export function newChatRuntime(): ChatRuntime {
   return {
@@ -524,6 +530,7 @@ export const useStore = create<Store>((set, get) => {
     viewer: null,
     confirm: null,
     toasts: [],
+    settingsSection: 'accounts',
     closedTabs: [],
     closedPlaces: {},
     treeVersion: 0,
@@ -1103,8 +1110,9 @@ export const useStore = create<Store>((set, get) => {
       if (POPOUT_TAB) return
       get().openTab({ id: uid(), kind: 'terminal', projectId: null, cwd: get().info?.homeDir ?? 'C:\\', title, run })
     },
-    openSettings: () => {
-      if (POPOUT_TAB) return window.loom.mainDo('openSettings', [])
+    openSettings: (section) => {
+      if (POPOUT_TAB) return window.loom.mainDo('openSettings', section ? [section] : [])
+      if (section) set({ settingsSection: section })
       const open = get().tabs.find((t) => t.kind === 'settings')
       if (open) return get().activate(open.id)
       get().openTab({ id: uid(), kind: 'settings', projectId: null, title: 'Settings' })

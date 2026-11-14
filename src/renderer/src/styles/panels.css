@@ -746,21 +746,99 @@
   width: 100%;
   height: 100%;
   overflow: auto;
+  /* Room for the scrollbar whether or not a section needs one, so nothing shifts between sections */
+  scrollbar-gutter: stable;
   container-type: inline-size;
 }
 
+/* The sections down the left, the chosen one beside them */
 .settings-inner {
-  max-width: 760px;
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  column-gap: 44px;
+  align-items: start;
+  max-width: 980px;
   margin: 0 auto;
   padding: 36px 32px 72px;
 }
 
 .settings h1 {
-  margin: 0 0 26px;
+  margin: 0 0 18px;
+  padding-left: 10px;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.2;
+}
+
+/* Stays put while a long section scrolls */
+.set-nav {
+  position: sticky;
+  top: 36px;
+}
+
+.set-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.set-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 560;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
+}
+
+.set-tab svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--text-3);
+  transition: color var(--base) var(--ease-out);
+}
+
+.set-tab > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.set-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+/* The section showing: the lit wash of the current project in the sidebar, its icon in lavender */
+.set-tab[aria-selected='true'] {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.set-tab[aria-selected='true'] svg {
+  color: var(--light);
+}
+
+/* Where colours are forced the wash is gone: an outline says which one */
+@media (forced-colors: active) {
+  .set-tab[aria-selected='true'] {
+    outline: 1px solid;
+  }
 }
 
 .set-section {
@@ -768,10 +846,12 @@
 }
 
 .set-section h2 {
-  margin: 0 0 6px;
-  font-size: 15px;
+  margin: 0 0 10px;
+  font-size: 18px;
   font-weight: 680;
   letter-spacing: -0.015em;
+  /* On one line with "Settings" beside it */
+  line-height: 29px;
 }
 
 .set-row {
@@ -981,10 +1061,47 @@
   white-space: nowrap;
 }
 
-@container (max-width: 640px) {
+@container (max-width: 760px) {
   .set-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+  }
+}
+
+/* A narrow window: the sections become one row of tabs across the top, which scrolls when it must */
+@container (max-width: 640px) {
+  .settings-inner {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px 20px 56px;
+  }
+
+  .set-nav {
+    top: 0;
+    z-index: 2;
+    margin: -24px -20px 18px;
+    padding: 20px 20px 8px;
+    background: var(--bg);
+    box-shadow: 0 1px 0 var(--line);
+  }
+
+  .settings h1 {
+    margin-bottom: 10px;
+    padding-left: 0;
+    font-size: 20px;
+  }
+
+  .set-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .set-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .set-tab > span:first-of-type {
+    flex: none;
   }
 }
 

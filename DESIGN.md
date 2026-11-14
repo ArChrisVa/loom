@@ -58,6 +58,8 @@ Ease-out `cubic-bezier(0.16, 1, 0.3, 1)` for almost everything (hovers 200 to 25
 
 All drawn in theme: dropdowns with a drawn chevron and a glass list, checkboxes and radios that light lavender, the small Ultracode switch, fields with a lavender focus, keycaps with a lit top and dark base, light thin scrollbars, violet selection. Context menus are drawn by the app, never by the OS.
 
+Settings lists its sections down the left as tabs, one section showing at a time; the chosen one carries the lit wash of the current project in the sidebar, its icon in lavender. Room for the scrollbar is always kept, so nothing shifts between a long section and a short one. On a narrow window the sections become one row that scrolls.
+
 ## Rules kept
 
 No em dashes, no decorative numbering, no uppercase eyebrow labels, no gradient text or glow blobs without a source, no cards as the page structure, monospace only for code and data, no light-on-light glass.
