@@ -2,7 +2,7 @@
 // Add an entry for a release with something people should notice; leave out fixes nobody would
 // look for. Newest first. A few short lines each: what it is, and where to find it.
 
-export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media'
+export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media' | 'keys' | 'title' | 'bin' | 'server' | 'move' | 'settings'
 
 export interface Highlight {
   icon: HighlightIcon
@@ -16,6 +16,46 @@ export interface ReleaseNotes {
 }
 
 export const RELEASE_NOTES: ReleaseNotes[] = [
+  {
+    version: '0.1.16',
+    highlights: [
+      {
+        icon: 'title',
+        title: 'Chats name themselves',
+        body: 'A new chat gets a short title for what you asked, written from your first message. Double-click a tab to rename it yourself; Settings, Claude switches the naming off.'
+      },
+      {
+        icon: 'bin',
+        title: 'Delete a chat, and get it back',
+        body: 'Right-click a chat in the sidebar or on its tab and pick Move to recycle bin. Settings, Recycle bin puts it back where it was, and is the only place a chat is deleted for good.'
+      },
+      {
+        icon: 'server',
+        title: 'Dev servers that stay up',
+        body: 'When Claude starts a dev server it now starts it through Loom, so it keeps running until you stop it, not for two hours at most, and shows under Dev servers in the status bar.'
+      },
+      {
+        icon: 'keys',
+        title: 'Shortcuts you can change, and three new ones',
+        body: 'Settings, Keyboard: click Change next to a shortcut and press the keys you want. New: Shift+Tab steps through the permission modes in a chat, Ctrl+Shift+Z brings a closed tab back in its pane, and Ctrl+R reloads Loom.'
+      },
+      {
+        icon: 'move',
+        title: 'Move panes and groups by dragging',
+        body: 'With the screen split, drag a pane by its header to put it beside another or swap the two. In the sidebar, drag project groups into the order you like.'
+      },
+      {
+        icon: 'settings',
+        title: 'Settings in sections',
+        body: 'Settings now lists its sections on the left: Accounts, Claude, Notifications, Keyboard, Phone access, Terminal, Recycle bin and About.'
+      },
+      {
+        icon: 'done',
+        title: 'A quieter timeline, if you like',
+        body: 'Settings, Claude, Timeline: Quiet keeps every step but tones it down, with small grey dots and lighter step names.'
+      }
+    ]
+  },
   {
     version: '0.1.15',
     highlights: [
