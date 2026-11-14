@@ -353,6 +353,8 @@ interface Store extends PersistedState {
   splitPane: (edge: Edge, tabId?: string | null, paneId?: string) => void
   /** Shows a tab in a pane; if it was showing elsewhere, the two swap. */
   moveTabToPane: (tabId: string, paneId: string) => void
+  /** Moves a pane, with what it shows, beside another one; dropped on its middle, the two swap. */
+  movePane: (fromPaneId: string, zone: Edge | 'center', targetPaneId: string) => void
   closePane: (paneId?: string) => void
   applyPreset: (name: PresetName) => void
   resizeSplit: (splitId: string, sizes: number[]) => void
@@ -1307,6 +1309,20 @@ export const useStore = create<Store>((set, get) => {
       layout = setPaneTab(layout, paneId, tabId)
       set({ layout, focusedPane: paneId })
       get().activate(tabId)
+    },
+    movePane: (fromPaneId, zone, targetPaneId) => {
+      const s = get()
+      const from = paneById(s.layout, fromPaneId)
+      const target = paneById(s.layout, targetPaneId)
+      if (!from || !target || from.id === target.id) return
+      // On the middle: the two panes swap what they show.
+      const layout =
+        zone === 'center'
+          ? setPaneTab(setPaneTab(s.layout, from.id, target.tabId), target.id, from.tabId)
+          : splitLayout(removePane(s.layout, from.id), target.id, zone, { ...from })
+      const focusedPane = zone === 'center' ? target.id : from.id
+      set({ layout, focusedPane, activeTabId: from.tabId, pointerFocus: false })
+      if (from.tabId) get().activate(from.tabId)
     },
     closePane: (paneId) => {
       const s = get()

@@ -67,6 +67,7 @@ To show a site to a client, click the cloud next to its server in that list. Loo
 </p>
 
 Side by side, top and bottom, three columns or four squares. Drag a tab onto a pane to show it there or onto an edge to split, drag the dividers to resize, and move any tab out to a window of its own for a second screen. Chats keep running and terminals keep their output while they move. The layout is saved.
+With the screen split, a pane also moves by its header: drag it beside another pane, above or below it, or onto its middle to swap the two.
 
 ### Git without leaving the chat
 

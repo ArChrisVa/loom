@@ -41,6 +41,7 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 
 - The active tab is lit, with a 2px violet underline glowing under its label; its project name turns lavender.
 - Dividers light up lavender while held; dragged tabs show lavender drop zones. A split pane draws no edge of its own: the active tab's underline says which one you are in.
+- With the screen split, a pane's header is its handle (the grab hand): dragged, the pane moves beside another or swaps with it, through the same drop zones as a tab.
 - Sidebar groups reorder by dragging, with a lavender line where the group will land. A faint line separates the groups from the projects in none.
 - File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, then its time and the arrows to the message before and after, which stay at the column's right edge whatever the message's length); the conversation passes beneath it with a blur.

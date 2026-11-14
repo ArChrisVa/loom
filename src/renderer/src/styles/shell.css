@@ -2070,6 +2070,17 @@ body.is-resizing webview {
 .content.is-split .tab-panel .chat-head,
 .content.is-split .tab-panel .file-head {
   padding-right: 38px;
+  /* A pane is picked up by its header, to drop beside another one */
+  cursor: grab;
+}
+
+.content.is-split .tab-panel :is(.chat-head, .file-head):active {
+  cursor: grabbing;
+}
+
+/* What the header holds keeps its own pointer: text to select, fields, buttons */
+.content.is-split .tab-panel :is(.chat-head, .file-head) .selectable {
+  cursor: text;
 }
 
 /* The branch in the status bar opens the Changes panel */

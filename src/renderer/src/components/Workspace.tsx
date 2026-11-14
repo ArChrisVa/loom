@@ -181,7 +181,20 @@ function zoneAt(e: React.DragEvent, el: HTMLElement): Edge | 'center' {
   return dist < 0.25 ? edge : 'center'
 }
 
-/** While a tab is dragged: drop in the middle of a pane to show it there, near an edge to split. */
+const PANE_HEAD = '.chat-head, .file-head'
+
+/** The pane header a press landed on, when it can pick the pane up: not on a button, a field or text to select. */
+function grabbedHead(target: EventTarget | null): HTMLElement | null {
+  const el = target as HTMLElement | null
+  if (!el?.closest || el.closest('button, a, input, select, textarea, [role="button"], .selectable')) return null
+  return el.closest<HTMLElement>(PANE_HEAD)
+}
+
+/**
+ * While a tab or a pane is dragged: drop in the middle of a pane to show it there, near an edge to
+ * split. A pane picked up by its header moves as a whole: it leaves its place for the new one,
+ * and dropped on another pane's middle the two swap.
+ */
 function DropTargets({ panes, rects }: { panes: Pane[]; rects: Record<string, Rect> }): ReactNode {
   const [hint, setHint] = useState<{ pane: string; zone: Edge | 'center' } | null>(null)
   return (
@@ -207,10 +220,12 @@ function DropTargets({ panes, rects }: { panes: Pane[]; rects: Record<string, Re
             onDrop={(e) => {
               e.preventDefault()
               const id = e.dataTransfer.getData('loom/tab')
+              const from = e.dataTransfer.getData('loom/pane')
               const zone = zoneAt(e, e.currentTarget)
               setHint(null)
               const s = useStore.getState()
               s.set({ draggingTab: null })
+              if (from) return s.movePane(from, zone, p.id)
               if (!id) return
               if (zone === 'center') s.moveTabToPane(id, p.id)
               else s.splitPane(zone, id, p.id)
@@ -314,6 +329,34 @@ export function Workspace(): ReactNode {
               hidden={!visible}
               style={rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height, right: 'auto', bottom: 'auto' } : undefined}
               onPointerDownCapture={() => pane && useStore.getState().focusPane(pane.id, true)}
+              // With the screen split, a pane is picked up by its header and dropped where it should go.
+              onMouseDownCapture={(e) => {
+                const head = multi && e.button === 0 ? grabbedHead(e.target) : null
+                if (!head) return
+                head.draggable = true
+                // No drag came of it: the header goes back to plain.
+                window.addEventListener('mouseup', () => (head.draggable = false), { once: true })
+              }}
+              onDragStart={(e) => {
+                const head = e.target as HTMLElement
+                if (!pane || !head.matches?.(PANE_HEAD)) return
+                e.dataTransfer.setData('loom/tab', t.id)
+                e.dataTransfer.setData('loom/pane', pane.id)
+                e.dataTransfer.effectAllowed = 'move'
+                // After the drag has begun: changing the page during dragstart can cancel it.
+                setTimeout(() => useStore.getState().set({ draggingTab: t.id }), 0)
+              }}
+              onDragEnd={(e) => {
+                const head = e.target as HTMLElement
+                if (!head.matches?.(PANE_HEAD)) return
+                head.draggable = false
+                const s = useStore.getState()
+                s.set({ draggingTab: null })
+                // Let go outside Loom: the tab moves into a window of its own, as a dragged tab does.
+                const { screenX: x, screenY: y } = e
+                const outside = x < window.screenX || x > window.screenX + window.outerWidth || y < window.screenY || y > window.screenY + window.outerHeight
+                if (e.dataTransfer.dropEffect === 'none' && outside && (x !== 0 || y !== 0)) s.popOut(t.id, { x, y })
+              }}
             >
               <TabContent tab={t} active={focused} visible={visible} />
               {multi && visible ? (
