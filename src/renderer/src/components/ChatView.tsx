@@ -138,6 +138,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const project = useStore((st) => st.projects.find((p) => p.id === tab.projectId))
   const knownModels = useStore((st) => st.knownModels)
   const homeDir = useStore((st) => st.info?.homeDir)
+  const quiet = useStore((st) => st.settings.timeline === 'quiet')
   const rawPartial = useLive((l) => l.partial[tab.id] ?? '')
   const thinking = useLive((l) => l.thinking[tab.id] ?? null)
   const partial = useThrottled(rawPartial, rawPartial.length < 3000 ? 50 : rawPartial.length < 15000 ? 150 : 300)
@@ -340,7 +341,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   return (
     <div
       ref={root}
-      className={`chat${dragFiles ? ' drag-files' : ''}`}
+      className={`chat${dragFiles ? ' drag-files' : ''}${quiet ? ' is-quiet' : ''}`}
       // Files dropped on the message box go into the message: images attach, others are mentioned.
       // Dropped anywhere else on the chat, images still attach (a screenshot is for Claude) and
       // other files open in tabs, as they do everywhere in Loom.

@@ -451,6 +451,16 @@ export function SettingsView(): ReactNode {
               </button>
             </div>
           </Row>
+          <Row title="Timeline" hint="How Claude's steps show in a chat. Quiet keeps every step but tones it down: small grey dots, a fainter line and lighter step names, closer together.">
+            <div className="segmented">
+              <button aria-selected={st.timeline !== 'quiet'} onClick={() => update({ timeline: 'full' })}>
+                Full
+              </button>
+              <button aria-selected={st.timeline === 'quiet'} onClick={() => update({ timeline: 'quiet' })}>
+                Quiet
+              </button>
+            </div>
+          </Row>
           <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
         </section>
 

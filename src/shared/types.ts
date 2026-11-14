@@ -270,6 +270,8 @@ export interface LoomSettings {
   newChatEffort?: EffortLevel | null
   /** Shortcuts changed in Settings, by what they do: { closeTab: "Ctrl+Q" }. The rest keep their defaults. */
   keys?: Record<string, string>
+  /** How Claude's steps show in a chat: quiet tones the dots, the line and the step names down */
+  timeline?: 'full' | 'quiet'
   /** The last version whose What's new was shown (or skipped, on a first install) */
   lastSeenVersion?: string
   notifyWhenDone: boolean
