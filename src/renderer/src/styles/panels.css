@@ -951,6 +951,16 @@
   color: var(--text-3);
 }
 
+/* A second set of keys for the same thing */
+.key-also {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 2px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 .key-row {
   display: flex;
   justify-content: space-between;

@@ -299,6 +299,14 @@ function KeyboardSettings({ chosen, sendWithCtrlEnter, update }: { chosen: KeyCh
               </dt>
               <dd>
                 {on ? <span className="key-waiting">Press the new keys, or Esc to keep these</span> : <kbd>{keysOf(s.id, chosen)}</kbd>}
+                {/* A second set of keys for the same thing, while the shortcut is the one Loom came with */}
+                {!on && !chosen?.[s.id]
+                  ? s.also?.map((k) => (
+                      <span key={k} className="key-also">
+                        or <kbd>{k}</kbd>
+                      </span>
+                    ))
+                  : null}
                 {chosen?.[s.id] && !on ? (
                   <button className="icon-btn small" title={`Back to ${s.keys}`} aria-label={`Reset ${s.label} to ${s.keys}`} onClick={() => reset(s.id)}>
                     <RotateCcw />

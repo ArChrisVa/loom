@@ -68,6 +68,7 @@ To show a site to a client, click the cloud next to its server in that list. Loo
 
 Side by side, top and bottom, three columns or four squares. Drag a tab onto a pane to show it there or onto an edge to split, drag the dividers to resize, and move any tab out to a window of its own for a second screen. Chats keep running and terminals keep their output while they move. The layout is saved.
 With the screen split, a pane also moves by its header: drag it beside another pane, above or below it, or onto its middle to swap the two.
+A tab closed by mistake comes back with Ctrl+Shift+T or Ctrl+Shift+Z, in the pane it was in.
 
 ### Git without leaving the chat
 
@@ -134,6 +135,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 |---|---|
 | New chat in this project | Ctrl+T |
 | Close tab | Ctrl+W |
+| Reopen the tab closed last, in its pane | Ctrl+Shift+T, Ctrl+Shift+Z |
 | Next and previous tab | Ctrl+Tab, Ctrl+Shift+Tab |
 | Open a file or a chat | Ctrl+P |
 | Open a file from anywhere on the PC | Ctrl+O |
@@ -148,6 +150,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 | Next permission mode, in a chat | Shift+Tab |
 
 Every shortcut can be changed in Settings, Keyboard: click Change and press the keys you want.
+Ctrl+Shift+Z stays redo in a file you are editing and in a text field with something to redo.
 
 ## Good to know
 

@@ -37,7 +37,7 @@ export interface Shortcut {
 export const SHORTCUTS: Shortcut[] = [
   { id: 'newChat', label: 'New chat in this project', keys: 'Ctrl+T' },
   { id: 'closeTab', label: 'Close tab', keys: 'Ctrl+W' },
-  { id: 'reopenTab', label: 'Reopen the tab closed last', keys: 'Ctrl+Shift+T' },
+  { id: 'reopenTab', label: 'Reopen the tab closed last, in the pane it was in', keys: 'Ctrl+Shift+T', also: ['Ctrl+Shift+Z'] },
   { id: 'nextTab', label: 'Next tab', keys: 'Ctrl+Tab' },
   { id: 'prevTab', label: 'Previous tab', keys: 'Ctrl+Shift+Tab' },
   { id: 'quickOpen', label: 'Find a file or a chat', keys: 'Ctrl+P' },
@@ -138,7 +138,6 @@ const TAKEN: Record<string, string> = {
   'Ctrl+A': 'selecting everything',
   'Ctrl+Z': 'undoing',
   'Ctrl+Y': 'redoing',
-  'Ctrl+Shift+Z': 'redoing',
   'Ctrl+F': 'finding in a file',
   Esc: 'stopping Claude and closing things',
   Enter: 'sending a message',
@@ -171,6 +170,22 @@ export function whyNot(combo: string, id: ShortcutId, chosen: KeyChoices | undef
 /** The keys a shortcut has now, for hints and tooltips; follows Settings. */
 export function useKeys(id: ShortcutId): string {
   return useStore((s) => keysOf(id, s.settings.keys))
+}
+
+/**
+ * Whether Ctrl+Shift+Z means redo where the keyboard is: in a file being edited, or in a text
+ * field with something to redo. Anywhere else it reopens the tab closed last.
+ */
+export function redoBelongsHere(): boolean {
+  const el = document.activeElement as HTMLElement | null
+  if (!el) return false
+  if (el.closest('.monaco-editor')) return true
+  if (!el.matches('input, textarea, [contenteditable="true"]')) return false
+  try {
+    return document.queryCommandEnabled('redo')
+  } catch {
+    return false
+  }
 }
 
 /**

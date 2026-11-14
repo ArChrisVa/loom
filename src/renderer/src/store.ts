@@ -39,6 +39,7 @@ import type { RemoteStatus } from '@shared/remote'
 import {
   cleanLayout,
   inFileRow,
+  mapPanes,
   newPane,
   paneById,
   paneOfTab,
@@ -395,6 +396,8 @@ interface Store extends PersistedState {
   requestRemoveProject: (id: string) => Promise<void>
   /** Tabs closed in this session, newest last, for Reopen closed tab */
   closedTabs: Tab[]
+  /** Where each of them was showing when it closed: its pane, and the split as it was then. */
+  closedPlaces: Record<string, { paneId: string; layout: LayoutNode }>
   reopenClosed: () => void
   requestDeleteGroup: (id: string) => Promise<void>
 }
@@ -519,6 +522,7 @@ export const useStore = create<Store>((set, get) => {
     confirm: null,
     toasts: [],
     closedTabs: [],
+    closedPlaces: {},
     treeVersion: 0,
     layout: { kind: 'pane', id: 'main', tabId: null },
     focusedPane: 'main',
@@ -909,7 +913,12 @@ export const useStore = create<Store>((set, get) => {
       // Chats with history, files, previews and diffs can come back; a shell or a dev server can't.
       const reopenable = (tab.kind === 'chat' && tab.sessionId) || tab.kind === 'file' || tab.kind === 'browser' || tab.kind === 'diff'
       const closedTabs = reopenable ? [...s.closedTabs.filter((t) => t.id !== tabId), tab].slice(-20) : s.closedTabs
-      set({ tabs, layout, focusedPane, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts, closedTabs })
+      // Where it was showing, so reopening it puts it back there (and brings back a pane that went with it).
+      const was = paneOfTab(s.layout, tabId)
+      const closedPlaces: Store['closedPlaces'] = {}
+      for (const t of closedTabs) if (s.closedPlaces[t.id]) closedPlaces[t.id] = s.closedPlaces[t.id]
+      if (reopenable && was) closedPlaces[tabId] = { paneId: was.id, layout: s.layout }
+      set({ tabs, layout, focusedPane, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts, closedTabs, closedPlaces })
       clearLive(tabId)
       if (activeTabId) get().activate(activeTabId)
     },
@@ -1772,13 +1781,33 @@ export const useStore = create<Store>((set, get) => {
     reopenClosed: () => {
       const list = [...get().closedTabs]
       const tab = list.pop()
-      set({ closedTabs: list })
       if (!tab) return
-      if (tab.kind === 'file') return get().openFile(tab.path, tab.projectId)
+      const place = get().closedPlaces[tab.id]
+      const closedPlaces = { ...get().closedPlaces }
+      delete closedPlaces[tab.id]
+      set({ closedTabs: list, closedPlaces })
+      // Back where it was showing: the keyboard goes to that pane, and the tab opens in it.
+      const goBack = (): void => {
+        if (!place) return
+        const s = get()
+        if (paneById(s.layout, place.paneId)) return get().focusPane(place.paneId)
+        // Its pane went when it closed. With the other panes still the ones from then, the split
+        // comes back as it was, each showing what it shows now.
+        const now = panesOf(s.layout)
+        const then = panesOf(place.layout).filter((p) => p.id !== place.paneId)
+        if (now.length !== then.length || !then.every((p) => now.some((n) => n.id === p.id))) return
+        const layout = mapPanes(place.layout, (p) => (p.id === place.paneId ? { ...p, tabId: null } : (paneById(s.layout, p.id) ?? p)))
+        set({ layout, focusedPane: place.paneId, activeTabId: null, pointerFocus: false })
+      }
+      if (tab.kind === 'file') {
+        if (!get().tabs.some((t) => t.kind === 'file' && normPath(t.path) === normPath(tab.path))) goBack()
+        return get().openFile(tab.path, tab.projectId)
+      }
       if (tab.kind === 'chat') {
         const open = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === tab.sessionId)
         if (open) return get().activate(open.id)
       }
+      goBack()
       // The project may have gone meanwhile; the tab still opens, just without it.
       const projectId = tab.projectId && get().projects.some((p) => p.id === tab.projectId) ? tab.projectId : null
       get().openTab({ ...tab, id: uid(), projectId } as Tab)

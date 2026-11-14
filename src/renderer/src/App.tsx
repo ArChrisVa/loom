@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
-import { keyboardInChat, shortcutOf } from './lib/keys'
+import { comboOf, keyboardInChat, redoBelongsHere, shortcutOf } from './lib/keys'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { startRemoteAgent } from './remoteAgent'
@@ -40,6 +40,8 @@ function useShortcuts(): void {
         s.focusPane(list[(i + by + list.length) % list.length].id)
         return true
       }
+      // Ctrl+Shift+Z stays redo in a file being edited, and in a text field with something to redo.
+      if (comboOf(e) === 'Ctrl+Shift+Z' && redoBelongsHere()) return
       switch (shortcutOf(e, s.settings.keys)) {
         case 'splitRight':
           s.splitPane('right')
