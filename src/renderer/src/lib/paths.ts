@@ -55,6 +55,13 @@ export function timeAgo(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
+/** A file's size the short way: 512 bytes, 34 KB, 2.4 MB. */
+export function sizeText(bytes: number): string {
+  if (bytes < 1024) return `${bytes} bytes`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)} MB`
+}
+
 /** 4 s, 1m 12s, 2h 5m: how long something took. */
 export function formatDuration(ms: number): string {
   const s = Math.max(1, Math.round(ms / 1000))

@@ -1,9 +1,9 @@
-import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSquare, Play, RefreshCw, RotateCcw, Smartphone, SquareTerminal } from 'lucide-react'
+import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSquare, Play, RefreshCw, RotateCcw, Smartphone, SquareTerminal, Trash2, Undo2 } from 'lucide-react'
 import { comboOf, keysOf, SHORTCUTS, whyNot, type KeyChoices, type ShortcutId } from '../lib/keys'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
-import { timeAgo } from '../lib/paths'
+import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, TrashedChat, UpdateStatus } from '@shared/types'
+import { baseName, projectForPath, sizeText, timeAgo } from '../lib/paths'
 import { useStore, type SettingsSection } from '../store'
 import { ALL_EFFORTS, EFFORT_LABELS, MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
@@ -373,6 +373,89 @@ function updateLine(u: UpdateStatus): string {
   }
 }
 
+/**
+ * The recycle bin: chats deleted from the sidebar or from their tab. Each can be put back where it
+ * was, or deleted for good, which is the only place Loom ever removes a chat's history.
+ */
+function RecycleBin(): ReactNode {
+  const trash = useStore((s) => s.trash)
+  const projects = useStore((s) => s.projects)
+  const [busy, setBusy] = useState<string | null>(null)
+  useEffect(() => {
+    void useStore.getState().refreshTrash()
+  }, [])
+
+  const putBack = async (c: TrashedChat): Promise<void> => {
+    const s = useStore.getState()
+    setBusy(c.sessionId)
+    const ok = await s.restoreChat(c.sessionId)
+    setBusy(null)
+    if (!ok) return
+    const session = useStore.getState().sessions.find((x) => x.sessionId === c.sessionId)
+    const where = projectForPath(projects, c.cwd)?.name
+    s.showToast(`${c.title} is back${where ? ` in ${where}` : ''}.`, session ? { label: 'Open', run: () => useStore.getState().openSession(session) } : undefined)
+  }
+
+  return (
+    <section className="set-section">
+      <div className="set-heading">
+        <h2>Recycle bin</h2>
+        {trash?.length ? (
+          <button className="btn danger" onClick={() => void useStore.getState().purgeTrash('all')}>
+            <Trash2 /> Empty the bin
+          </button>
+        ) : null}
+      </div>
+      <p className="set-lede">
+        Chats you delete wait here, out of the sidebar and out of Claude Code&apos;s own list. Put one back and it returns to its project. Deleted here, it is gone for good.
+      </p>
+      {trash === null ? (
+        <p className="bin-empty">Looking in the bin…</p>
+      ) : !trash.length ? (
+        <p className="bin-empty">The bin is empty. To delete a chat, right-click it in the sidebar or on its tab and choose Move to recycle bin.</p>
+      ) : (
+        <ul className="bin">
+          {trash.map((c) => {
+            const where = projectForPath(projects, c.cwd)?.name ?? (c.cwd ? baseName(c.cwd) : 'No project')
+            return (
+              <li key={c.sessionId} className="bin-row" data-session={c.sessionId}>
+                <div className="bin-text">
+                  <span className="bin-title" title={c.title}>
+                    {c.title}
+                  </span>
+                  <span className="bin-meta">
+                    <span title={c.cwd || undefined}>{where}</span>
+                    <span>Deleted {timeAgo(c.deletedAt)}</span>
+                    <span>{sizeText(c.size)}</span>
+                  </span>
+                </div>
+                <div className="bin-actions">
+                  <button
+                    className="btn"
+                    disabled={!c.restorable || busy === c.sessionId}
+                    title={c.restorable ? `Back to ${where}, as it was` : 'The note of where this chat came from is missing, so it cannot be put back'}
+                    onClick={() => void putBack(c)}
+                  >
+                    <Undo2 /> Put back
+                  </button>
+                  <button
+                    className="icon-btn bin-delete"
+                    title="Delete for good"
+                    aria-label={`Delete ${c.title} for good`}
+                    onClick={() => void useStore.getState().purgeTrash([c.sessionId])}
+                  >
+                    <Trash2 />
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: 'accounts', label: 'Accounts', icon: <CircleUser /> },
   { id: 'claude', label: 'Claude', icon: <MessagesSquare /> },
@@ -380,6 +463,7 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: 'keyboard', label: 'Keyboard', icon: <Keyboard /> },
   { id: 'phone', label: 'Phone access', icon: <Smartphone /> },
   { id: 'terminal', label: 'Terminal', icon: <SquareTerminal /> },
+  { id: 'trash', label: 'Recycle bin', icon: <Trash2 /> },
   { id: 'about', label: 'About', icon: <Info /> }
 ]
 
@@ -394,7 +478,7 @@ const NATIVE_TABS = 'focusGroup' in HTMLElement.prototype
  * The sections of Settings, down the left: one shows at a time. As tabs go, the arrow keys move
  * between them and the section follows.
  */
-function SectionNav({ sections, current }: { sections: typeof SECTIONS; current: SettingsSection }): ReactNode {
+function SectionNav({ sections, current, bin }: { sections: typeof SECTIONS; current: SettingsSection; bin: number }): ReactNode {
   const pick = (id: SettingsSection): void => useStore.setState({ settingsSection: id })
   const list = useRef<HTMLDivElement>(null)
   // On a narrow window the tabs sit in one row that scrolls: the chosen one stays in view.
@@ -441,6 +525,7 @@ function SectionNav({ sections, current }: { sections: typeof SECTIONS; current:
             >
               {x.icon}
               <span>{x.label}</span>
+              {x.id === 'trash' && bin ? <span className="set-tab-count">{bin}</span> : null}
             </button>
           )
         })}
@@ -453,9 +538,11 @@ export function SettingsView(): ReactNode {
   const s = useStore()
   const st = s.settings
   const info = s.info
-  // Look again for Claude Code each time Settings opens: it may have been installed since.
+  // Look again for Claude Code each time Settings opens: it may have been installed since. The
+  // bin's count shows beside its name, so it is looked at too.
   useEffect(() => {
     void window.loom.claudeInfo().then((next) => useStore.getState().set({ info: next }))
+    void useStore.getState().refreshTrash()
   }, [])
   const update = (patch: Partial<LoomSettings>): void => s.set({ settings: { ...st, ...patch } })
 
@@ -601,6 +688,9 @@ export function SettingsView(): ReactNode {
         </section>
       )
       break
+    case 'trash':
+      page = <RecycleBin />
+      break
     case 'about':
       page = s.update ? (
         <section className="set-section">
@@ -635,7 +725,7 @@ export function SettingsView(): ReactNode {
   return (
     <div className="settings">
       <div className="settings-inner">
-        <SectionNav sections={sections} current={current} />
+        <SectionNav sections={sections} current={current} bin={s.trash?.length ?? 0} />
         <div className="set-page" role="tabpanel" aria-labelledby={`set-tab-${current}`} data-section={current}>
           {page}
         </div>

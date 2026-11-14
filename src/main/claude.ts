@@ -178,7 +178,7 @@ const MISSING_CLAUDE =
 let sessionCache: { at: number; list: SessionSummary[] } | null = null
 const cwdCache = new Map<string, string | null>()
 
-async function transcriptIndex(): Promise<Map<string, string>> {
+export async function transcriptIndex(): Promise<Map<string, string>> {
   const root = join(homedir(), '.claude', 'projects')
   const index = new Map<string, string>()
   let dirs: string[] = []
@@ -1125,6 +1125,17 @@ export function holdChat(tabId: string): void {
 /** Sends a chat's events to another window, when its tab moves there. */
 export function rebindChat(tabId: string, web: WebContents): void {
   chats.get(tabId)?.rebind(web)
+}
+
+/** Whether a chat is open in some tab, and so has Claude Code holding (or about to write) its history. */
+export function sessionInUse(sessionId: string): boolean {
+  return [...chats.values()].some((c) => c.sessionId === sessionId)
+}
+
+/** A chat's history file moved (to the recycle bin, or back): what was remembered about it is out of date. */
+export function forgetSession(sessionId: string): void {
+  sessionCache = null
+  cwdCache.delete(sessionId)
 }
 
 export function getChat(tabId: string): ChatSession | undefined {

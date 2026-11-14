@@ -76,6 +76,7 @@ import {
 import { findCloudflared, killAllTunnels, listTunnels, serversChanged, startTunnel, stopTunnel } from './tunnels'
 import { mediaInfo, registerMediaScheme, serveMedia } from './media'
 import { closeAllPopouts, setupPopouts } from './popouts'
+import { listTrash, purgeTrash, restoreChat, trashChat } from './chatTrash'
 import { closeRemote, setupRemote } from './remote'
 import { githubSign, serviceAccount, setupAccounts } from './accounts'
 import { cancelLogin, loginState, startLogin, submitLoginCode } from './login'
@@ -523,6 +524,10 @@ function registerIpc(): void {
   })
   ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string) => renameSession(sessionId, title))
   ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
+  ipcMain.handle('trash:add', (_e, sessionId: string, title?: string) => trashChat(sessionId, title))
+  ipcMain.handle('trash:list', () => listTrash())
+  ipcMain.handle('trash:restore', (_e, sessionId: string) => restoreChat(sessionId))
+  ipcMain.handle('trash:purge', (_e, ids: string[] | 'all') => purgeTrash(ids))
 
   ipcMain.handle('chat:open', (e, tabId: string, opts: ChatStartOptions) => {
     openChat(e.sender, tabId, opts, settings, (id, error, ask) => {

@@ -51,6 +51,7 @@ While Claude works, its last step says so in lavender with a running clock; a fi
 Any earlier Claude Code chat for a project can be picked up where it left off.
 Once your message scrolls out of sight it stays pinned at the top of the chat, with arrows to step through your messages, so you always know which question the answer on screen belongs to.
 Type `/usage` at any time, even while Claude works, to see your plan limits.
+A chat you are done with goes to the recycle bin: right-click it in the sidebar or on its tab and pick Move to recycle bin. Settings, Recycle bin puts it back where it was, and is the only place a chat is deleted for good.
 
 Heavy jobs don't have to hold up the chat. A long command or agent can be moved to the background from its step with **Run in background**, and **Send to background** (Alt+Enter) hands a new job straight to a background agent. Either way you keep chatting; when the job is done Loom says so, and Claude picks up the result and carries on. Stop ends Claude's turn and leaves background work running; each job has its own Stop.
 
@@ -161,6 +162,7 @@ Reloading starts the window over without stopping anything: chats, terminals and
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
+- **Deleting a chat** moves its history to `~/.claude/chat-trash`, where it stays until you put it back or delete it for good in Settings, Recycle bin.
 - **Throwing away changes** in the Git panel keeps a copy in `%APPDATA%\Loom\discarded`; new files go to the Recycle Bin.
 
 ## For developers

@@ -657,6 +657,16 @@
   margin: -2px 0;
 }
 
+/* The one thing to do about it (Undo), as a small glass pill beside the text */
+.toast-action {
+  flex: none;
+  height: 24px;
+  margin: -2px 0;
+  padding: 0 10px;
+  color: var(--light);
+  font-size: 12px;
+}
+
 /* ---------- Quick open ---------- */
 .palette-backdrop {
   position: fixed;
@@ -841,6 +851,14 @@
   }
 }
 
+/* How many chats are in the bin */
+.set-tab-count {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
 .set-section {
   margin-bottom: 34px;
 }
@@ -981,6 +999,67 @@
 /* The heading's own space below goes to the row, so the button beside it sits level */
 .set-heading h2 {
   margin-bottom: 0;
+}
+
+/* ---------- Recycle bin ---------- */
+.bin {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.bin-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bin-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 560;
+}
+
+.bin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bin-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+}
+
+.bin-delete:hover:not(:disabled) {
+  background: rgba(255, 91, 112, 0.14);
+  color: var(--danger);
+}
+
+.bin-empty {
+  max-width: 62ch;
+  margin: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  line-height: 1.5;
 }
 
 .keys {

@@ -30,6 +30,7 @@ import {
   type SlashCommandInfo,
   type Tab,
   type TabSnapshot,
+  type TrashedChat,
   type UpdateStatus,
   type AgentTask,
   type UsageSnapshot,
@@ -241,9 +242,11 @@ interface Store extends PersistedState {
   confirm: (ConfirmRequest & { resolve: (choice: string, text?: string) => void }) | null
   /** Bumped when files may have changed, so open folders in the Files panel read again */
   treeVersion: number
-  toasts: { id: string; text: string }[]
+  toasts: { id: string; text: string; action?: ToastAction }[]
   /** Which part of Settings is showing */
   settingsSection: SettingsSection
+  /** Chats in the recycle bin, newest first; null until first looked at */
+  trash: TrashedChat[] | null
   layout: LayoutNode
   /** The pane you're working in: the tab bar and new tabs act on it. */
   focusedPane: string
@@ -317,6 +320,13 @@ interface Store extends PersistedState {
   openSession: (session: SessionSummary) => void
   /** Moves a chat to another project: its history goes with it, and Claude works in the new folder. */
   moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
+  /** Deletes a chat: its tab closes and it goes to the recycle bin, from where it can be put back. */
+  deleteChat: (ref: { tabId?: string; session?: SessionSummary }) => Promise<void>
+  refreshTrash: () => Promise<void>
+  /** Puts a chat in the recycle bin back in its project. */
+  restoreChat: (sessionId: string) => Promise<boolean>
+  /** Deletes chats in the recycle bin for good, after asking; 'all' empties it. */
+  purgeTrash: (ids: string[] | 'all') => Promise<void>
   openFile: (path: string, projectId?: string | null) => void
   newTerminal: (projectId: string | null, cwd?: string) => void
   /** Opens Settings, on the given part when one is named */
@@ -387,7 +397,8 @@ interface Store extends PersistedState {
   showMenu: (e: { clientX: number; clientY: number }, items: MenuItem[]) => void
   /** Asks a question in Loom's own dialog; resolves with the id of the choice picked. */
   ask: (req: ConfirmRequest) => Promise<string>
-  showToast: (text: string) => void
+  /** `action`: one thing to do about it, such as Undo */
+  showToast: (text: string, action?: ToastAction) => void
   dismissToast: (id: string) => void
   /** Asks for a name; null when cancelled or left empty. */
   askText: (req: { title: string; body?: string; value: string; placeholder?: string; select?: [number, number]; confirm: string }) => Promise<string | null>
@@ -409,7 +420,13 @@ interface Store extends PersistedState {
 }
 
 /** The parts of Settings, in the order they are listed */
-export type SettingsSection = 'accounts' | 'claude' | 'notifications' | 'keyboard' | 'phone' | 'terminal' | 'about'
+export type SettingsSection = 'accounts' | 'claude' | 'notifications' | 'keyboard' | 'phone' | 'terminal' | 'trash' | 'about'
+
+/** One thing a toast offers to do, such as Undo */
+export interface ToastAction {
+  label: string
+  run: () => void
+}
 
 export function newChatRuntime(): ChatRuntime {
   return {
@@ -531,6 +548,7 @@ export const useStore = create<Store>((set, get) => {
     confirm: null,
     toasts: [],
     settingsSection: 'accounts',
+    trash: null,
     closedTabs: [],
     closedPlaces: {},
     treeVersion: 0,
@@ -1029,6 +1047,58 @@ export const useStore = create<Store>((set, get) => {
         title: session.title.length > 60 ? `${session.title.slice(0, 60)}…` : session.title,
         ...get().chatDefaults()
       })
+    },
+    deleteChat: async (ref) => {
+      if (POPOUT_TAB) return
+      const tab = get().tabs.find(
+        (t): t is ChatTab => t.kind === 'chat' && (ref.tabId ? t.id === ref.tabId : !!ref.session && t.sessionId === ref.session.sessionId)
+      )
+      const sessionId = tab?.sessionId ?? ref.session?.sessionId ?? null
+      const title = tab?.title ?? ref.session?.title ?? 'The chat'
+      // Its tab closes first (asking, if Claude is still working in it): Claude Code lets go of the history.
+      if (tab && !(await get().requestClose([tab.id]))) return
+      // A chat with nothing said in it yet has no history: closing it was all there was to do.
+      if (!sessionId) return
+      const r = await window.loom.trashChat(sessionId, title)
+      if (!r.ok) return get().showToast(r.error ?? `${title} could not be moved to the recycle bin.`)
+      set((s) => ({
+        sessions: s.sessions.filter((x) => x.sessionId !== sessionId),
+        // Reopen closed tab must not bring back a chat whose history is in the bin.
+        closedTabs: s.closedTabs.filter((t) => !(t.kind === 'chat' && t.sessionId === sessionId))
+      }))
+      void get().refreshSessions(true)
+      void get().refreshTrash()
+      get().showToast(`${title} is in the recycle bin.`, { label: 'Undo', run: () => void get().restoreChat(sessionId) })
+    },
+    refreshTrash: async () => {
+      const trash = await window.loom.listTrash().catch(() => [] as TrashedChat[])
+      set({ trash })
+    },
+    restoreChat: async (sessionId) => {
+      const r = await window.loom.restoreChat(sessionId)
+      if (!r.ok) get().showToast(r.error ?? 'The chat could not be put back.')
+      await Promise.all([get().refreshSessions(true), get().refreshTrash()])
+      return r.ok
+    },
+    purgeTrash: async (ids) => {
+      const list = get().trash ?? []
+      const going = ids === 'all' ? list : list.filter((x) => ids.includes(x.sessionId))
+      if (!going.length) return
+      const one = going.length === 1
+      const choice = await get().ask({
+        title: one ? `Delete ${going[0].title} for good?` : `Delete ${going.length} chats for good?`,
+        body: one ? 'Its whole history is removed from this PC. This cannot be undone.' : 'Their whole history is removed from this PC. This cannot be undone.',
+        items: one || going.length > 8 ? undefined : going.map((x) => x.title),
+        choices: [
+          { id: 'delete', label: 'Delete for good', kind: 'danger' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel'
+      })
+      if (choice !== 'delete') return
+      const r = await window.loom.purgeTrash(ids === 'all' ? 'all' : going.map((x) => x.sessionId))
+      if (r.failed) get().showToast(r.failed === 1 ? 'One chat could not be deleted. Try again in a moment.' : `${r.failed} chats could not be deleted. Try again in a moment.`)
+      await get().refreshTrash()
     },
     openFile: (path, projectId) => {
       if (POPOUT_TAB) return window.loom.mainDo('openFile', [path, projectId])
@@ -1663,10 +1733,11 @@ export const useStore = create<Store>((set, get) => {
         if (open) open.resolve(open.cancel)
         set({ confirm: { ...req, resolve } })
       }),
-    showToast: (text) => {
+    showToast: (text, action) => {
       const id = uid()
-      set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text }] }))
-      setTimeout(() => get().dismissToast(id), 7000)
+      set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text, action }] }))
+      // One with something to do about it stays a little longer.
+      setTimeout(() => get().dismissToast(id), action ? 10_000 : 7000)
     },
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
     askText: (req) =>

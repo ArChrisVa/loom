@@ -2,15 +2,9 @@ import { ExternalLink, FolderOpen, Maximize2, Minimize2 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { FileTab } from '@shared/types'
 import type { MediaInfo } from '@shared/media'
-import { relPath } from '../lib/paths'
+import { relPath, sizeText } from '../lib/paths'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
-
-function sizeText(bytes: number): string {
-  if (bytes < 1024) return `${bytes} bytes`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)} MB`
-}
 
 function lengthText(seconds: number): string {
   if (!Number.isFinite(seconds)) return ''

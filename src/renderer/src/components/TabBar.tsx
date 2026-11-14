@@ -138,6 +138,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
             .filter((p) => p.id !== tab.projectId)
             .map((p) => ({ label: p.name, onSelect: () => void s.moveChat({ tabId: tab.id }, p.id) }))
         })
+        items.push({ label: 'Move chat to recycle bin', danger: true, onSelect: () => void s.deleteChat({ tabId: tab.id }) })
       }
     }
     if (tab.kind === 'file') {

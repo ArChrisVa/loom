@@ -110,7 +110,7 @@ export function ConfirmHost(): ReactNode {
   )
 }
 
-/** Short notes about something that didn't work, at the bottom right, gone after a few seconds. */
+/** Short notes at the bottom right, gone after a few seconds: something that didn't work, or something just done that can be undone. */
 export function ToastHost(): ReactNode {
   const toasts = useStore((s) => s.toasts)
   if (!toasts.length) return null
@@ -119,6 +119,17 @@ export function ToastHost(): ReactNode {
       {toasts.map((t) => (
         <div key={t.id} className="toast">
           <span className="selectable">{t.text}</span>
+          {t.action ? (
+            <button
+              className="btn ghost toast-action"
+              onClick={() => {
+                t.action!.run()
+                useStore.getState().dismissToast(t.id)
+              }}
+            >
+              {t.action.label}
+            </button>
+          ) : null}
           <button className="icon-btn small toast-close" aria-label="Dismiss" onClick={() => useStore.getState().dismissToast(t.id)}>
             <X />
           </button>

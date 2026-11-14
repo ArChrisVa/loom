@@ -144,6 +144,7 @@ function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }):
       }
     )
     if (id) items.push({ label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(id) })
+    items.push({ separator: true, label: '' }, { label: 'Move to recycle bin', danger: true, onSelect: () => void s.deleteChat(tab ? { tabId: tab.id } : { session }) })
     useStore.getState().showMenu(e, items)
   }
   return (

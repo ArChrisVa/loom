@@ -484,6 +484,20 @@ export interface SessionSummary {
   fileSize?: number
 }
 
+/** A chat in Loom's recycle bin: gone from the sidebar, kept until it is deleted for good */
+export interface TrashedChat {
+  sessionId: string
+  title: string
+  /** The folder it worked in, to name its project */
+  cwd: string
+  deletedAt: number
+  lastModified?: number
+  /** Size of its history file, in bytes */
+  size: number
+  /** False when the note of where it came from is missing: it can then only be deleted */
+  restorable: boolean
+}
+
 export interface HistoryResult {
   items: ChatItem[]
   total: number

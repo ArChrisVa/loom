@@ -60,6 +60,8 @@ All drawn in theme: dropdowns with a drawn chevron and a glass list, checkboxes 
 
 Settings lists its sections down the left as tabs, one section showing at a time; the chosen one carries the lit wash of the current project in the sidebar, its icon in lavender. Room for the scrollbar is always kept, so nothing shifts between a long section and a short one. On a narrow window the sections become one row that scrolls.
 
+A toast can offer one thing to do about what it says (Undo, Open) as a small lavender pill beside the text.
+
 ## Rules kept
 
 No em dashes, no decorative numbering, no uppercase eyebrow labels, no gradient text or glow blobs without a source, no cards as the page structure, monospace only for code and data, no light-on-light glass.

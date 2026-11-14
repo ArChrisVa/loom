@@ -34,6 +34,7 @@ import type {
   SlashCommandInfo,
   Tab,
   TabSnapshot,
+  TrashedChat,
   ServiceAccount,
   ServiceId,
   UpdateStatus,
@@ -119,6 +120,11 @@ const api = {
   renameSession: (sessionId: string, title: string): Promise<void> => ipcRenderer.invoke('sessions:rename', sessionId, title),
   moveSession: (sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('sessions:move', sessionId, fromCwd, toCwd),
+  /** The chat recycle bin: delete a chat into it, list it, put a chat back, delete for good ('all' empties it) */
+  trashChat: (sessionId: string, title?: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('trash:add', sessionId, title),
+  listTrash: (): Promise<TrashedChat[]> => ipcRenderer.invoke('trash:list'),
+  restoreChat: (sessionId: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('trash:restore', sessionId),
+  purgeTrash: (ids: string[] | 'all'): Promise<{ failed: number }> => ipcRenderer.invoke('trash:purge', ids),
 
   chatOpen: (tabId: string, opts: ChatStartOptions): Promise<void> => ipcRenderer.invoke('chat:open', tabId, opts),
   chatSend: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean): Promise<void> =>
