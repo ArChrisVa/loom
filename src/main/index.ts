@@ -32,6 +32,7 @@ import {
   liveQuery,
   loadSdk,
   moveSession,
+  nameChat,
   pruneChatBackups,
   loadHistory,
   openChat,
@@ -523,6 +524,7 @@ function registerIpc(): void {
     return history
   })
   ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string) => renameSession(sessionId, title))
+  ipcMain.handle('chat:name', (_e, firstMessage: string) => nameChat(firstMessage, settings()))
   ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
   ipcMain.handle('trash:add', (_e, sessionId: string, title?: string) => trashChat(sessionId, title))
   ipcMain.handle('trash:list', () => listTrash())

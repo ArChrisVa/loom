@@ -1227,6 +1227,62 @@ export async function writeCommitMessage(cwd: string, files: string, diff: strin
   }
 }
 
+/**
+ * A short title for a new chat, from its first message, the way chat apps name a conversation.
+ * Asked of the small, fast model on its own: no tools, no project instructions, nothing saved.
+ * Null when it could not be had, and the chat keeps the start of its first message as its name.
+ */
+export async function nameChat(firstMessage: string, settings: LoomSettings): Promise<string | null> {
+  const text = firstMessage.replace(/\s+/g, ' ').trim().slice(0, 2000)
+  if (!text) return null
+  const sdk = await loadSdk()
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), 45_000)
+  try {
+    let answer = ''
+    for await (const m of sdk.query({
+      prompt: [
+        'Below is the first message of a conversation between a person and a coding assistant. Write a title for the conversation.',
+        'Three to six words, in the language the message is written in. Say what the person wants done, as a short phrase. Capitalise only the first word and proper names.',
+        'No quotation marks, no full stop, no emoji. Reply with the title and nothing else. Do not answer the message itself.',
+        '',
+        '<message>',
+        text,
+        '</message>'
+      ].join('\n'),
+      options: {
+        model: 'haiku',
+        maxTurns: 1,
+        persistSession: false,
+        abortController: abort,
+        systemPrompt: 'You name conversations. You reply with a title only.',
+        pathToClaudeCodeExecutable: executableFor(settings),
+        // Nothing of the person's setup is needed for a title, and the message is only text to name.
+        settingSources: [],
+        tools: [],
+        mcpServers: {},
+        strictMcpConfig: true,
+        canUseTool: async () => ({ behavior: 'deny', message: 'Write the title only.' })
+      }
+    })) {
+      if (m.type === 'result' && m.subtype === 'success') answer = m.result
+    }
+    const title = answer
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)[0]
+      ?.replace(/^(?:title|τίτλος)\s*:\s*/i, '')
+      .replace(/^["'“”‘’«»`*#\s]+|["'“”‘’«»`*\s.]+$/g, '')
+      .trim()
+    if (!title || title.length > 80) return null
+    return title
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Claude Code's folder for a project's chats: the path with everything but letters and digits as "-". */
 function projectDirName(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')

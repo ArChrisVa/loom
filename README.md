@@ -51,6 +51,7 @@ While Claude works, its last step says so in lavender with a running clock; a fi
 Any earlier Claude Code chat for a project can be picked up where it left off.
 Once your message scrolls out of sight it stays pinned at the top of the chat, with arrows to step through your messages, so you always know which question the answer on screen belongs to.
 Type `/usage` at any time, even while Claude works, to see your plan limits.
+A new chat names itself: Claude writes a short title for it from your first message. Double-click its tab to rename it yourself, or switch the naming off in Settings, Claude.
 A chat you are done with goes to the recycle bin: right-click it in the sidebar or on its tab and pick Move to recycle bin. Settings, Recycle bin puts it back where it was, and is the only place a chat is deleted for good.
 
 Heavy jobs don't have to hold up the chat. A long command or agent can be moved to the background from its step with **Run in background**, and **Send to background** (Alt+Enter) hands a new job straight to a background agent. Either way you keep chatting; when the job is done Loom says so, and Claude picks up the result and carries on. Stop ends Claude's turn and leaves background work running; each job has its own Stop.

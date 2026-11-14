@@ -615,6 +615,15 @@ export function SettingsView(): ReactNode {
             />
           </Row>
           <NewChatRows model={st.newChatModel} effort={st.newChatEffort} update={update} />
+          <Row
+            title="Name new chats"
+            hint="A new chat gets a short title for what you asked, written by Claude's small model while your first message is answered. Without it, a chat is named by the start of that message. Double-click a tab to rename a chat yourself."
+          >
+            <label className="check-row">
+              <input type="checkbox" checked={st.autoTitle !== false} onChange={(e) => update({ autoTitle: e.target.checked })} />
+              <span>Give each new chat a title</span>
+            </label>
+          </Row>
           <Row title="Send messages with" hint="The other combination adds a new line.">
             <div className="segmented">
               <button aria-selected={!st.sendWithCtrlEnter} onClick={() => update({ sendWithCtrlEnter: false })}>

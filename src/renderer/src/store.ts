@@ -475,6 +475,9 @@ function nextColor(projects: Project[]): Project['color'] {
   return [...THREAD_COLORS].sort((a, b) => (used.get(a) ?? 0) - (used.get(b) ?? 0))[0]
 }
 
+/** Titles Claude wrote for new chats that had no id yet to be saved under, by tab. */
+const titlesToSave = new Map<string, string>()
+
 function chatTitleFrom(text: string): string {
   const one = text.replace(/\s+/g, ' ').trim()
   return one.length > 44 ? `${one.slice(0, 44)}…` : one || 'New chat'
@@ -1213,7 +1216,25 @@ export const useStore = create<Store>((set, get) => {
       if (!tab || tab.kind !== 'chat') return
       const trimmed = text.trim()
       if (!trimmed && !images.length) return
-      if (tab.title === 'New chat' && trimmed) get().updateTab(tabId, { title: chatTitleFrom(trimmed) })
+      if (tab.title === 'New chat' && trimmed) {
+        // Named by the start of the message at once, then by a short title Claude writes for it.
+        const first = chatTitleFrom(trimmed)
+        get().updateTab(tabId, { title: first })
+        if (get().settings.autoTitle !== false) {
+          void window.loom
+            .nameChat(trimmed)
+            .then((title) => {
+              const now = get().tabs.find((t) => t.id === tabId)
+              // Renamed by hand meanwhile, or closed: left as it is.
+              if (!title || now?.kind !== 'chat' || now.title !== first) return
+              get().updateTab(tabId, { title })
+              // Saved with the chat once Claude Code has given it an id, so the sidebar keeps the name.
+              if (now.sessionId) void window.loom.renameSession(now.sessionId, title)
+              else titlesToSave.set(tabId, title)
+            })
+            .catch(() => undefined)
+        }
+      }
       const previews: ImagePreview[] = await Promise.all(
         images.map(async (img) => {
           const full = `data:${img.mediaType};base64,${img.data}`
@@ -1604,6 +1625,12 @@ export const useStore = create<Store>((set, get) => {
           break
         case 'session': {
           get().updateTab(tabId, { sessionId: ev.sessionId } as Partial<ChatTab>)
+          // A title Claude wrote before the chat had an id is saved with it now.
+          const named = titlesToSave.get(tabId)
+          if (named) {
+            titlesToSave.delete(tabId)
+            if (get().tabs.find((t) => t.id === tabId)?.title === named) void window.loom.renameSession(ev.sessionId, named)
+          }
           patchChat(tabId, (c) => ({
             activeModel: ev.model ?? c.activeModel,
             permissionMode: ev.permissionMode ?? c.permissionMode,

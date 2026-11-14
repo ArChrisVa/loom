@@ -118,6 +118,8 @@ const api = {
   listSessions: (force?: boolean): Promise<SessionSummary[]> => ipcRenderer.invoke('sessions:list', force),
   loadHistory: (sessionId: string): Promise<HistoryResult> => ipcRenderer.invoke('sessions:history', sessionId),
   renameSession: (sessionId: string, title: string): Promise<void> => ipcRenderer.invoke('sessions:rename', sessionId, title),
+  /** A short title for a new chat, written by Claude from its first message; null when it could not be had */
+  nameChat: (firstMessage: string): Promise<string | null> => ipcRenderer.invoke('chat:name', firstMessage),
   moveSession: (sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('sessions:move', sessionId, fromCwd, toCwd),
   /** The chat recycle bin: delete a chat into it, list it, put a chat back, delete for good ('all' empties it) */

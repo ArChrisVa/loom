@@ -274,6 +274,8 @@ export interface LoomSettings {
   keys?: Record<string, string>
   /** How Claude's steps show in a chat: quiet tones the dots, the line and the step names down */
   timeline?: 'full' | 'quiet'
+  /** Whether a new chat gets a short title written by Claude from its first message. On unless false. */
+  autoTitle?: boolean
   /**
    * Whether Claude starts dev servers through Loom, where they run until stopped. Off leaves it
    * to Claude Code's own background commands, which it stops after two hours at most. On unless false.
