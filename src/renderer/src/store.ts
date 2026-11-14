@@ -300,6 +300,8 @@ interface Store extends PersistedState {
   /** Stops offering these folders */
   hideWatched: (groupId: string, folders: SubFolder[]) => void
   moveProject: (projectId: string, groupId: string | null, beforeProjectId?: string | null) => void
+  /** Puts a group before another one in the sidebar, or last when none is named. */
+  moveGroup: (groupId: string, beforeGroupId?: string | null) => void
 
   activate: (tabId: string) => void
   openTab: (tab: Tab) => void
@@ -806,6 +808,16 @@ export const useStore = create<Store>((set, get) => {
         if (idx >= 0) rest.splice(idx, 0, updated)
         else rest.push(updated)
         return { projects: rest }
+      }),
+    moveGroup: (groupId, beforeGroupId) =>
+      set((s) => {
+        const moving = s.groups.find((g) => g.id === groupId)
+        if (!moving || beforeGroupId === groupId) return {}
+        const rest = s.groups.filter((g) => g.id !== groupId)
+        const idx = beforeGroupId ? rest.findIndex((g) => g.id === beforeGroupId) : -1
+        if (idx >= 0) rest.splice(idx, 0, moving)
+        else rest.push(moving)
+        return { groups: rest }
       }),
 
     activate: (tabId) => {

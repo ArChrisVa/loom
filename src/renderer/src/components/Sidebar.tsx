@@ -373,17 +373,22 @@ function GroupBlock({
 }): ReactNode {
   const s = useStore()
   const [over, setOver] = useState(false)
+  /** A group dragged over this one: the line shows whether it lands above or below it. */
+  const [groupDrop, setGroupDrop] = useState<'before' | 'after' | null>(null)
   // A drop that a project row takes never reaches the group: the highlight ends with any drag.
   useEffect(() => {
-    if (!over) return
-    const off = (): void => setOver(false)
+    if (!over && !groupDrop) return
+    const off = (): void => {
+      setOver(false)
+      setGroupDrop(null)
+    }
     window.addEventListener('dragend', off)
     window.addEventListener('drop', off)
     return () => {
       window.removeEventListener('dragend', off)
       window.removeEventListener('drop', off)
     }
-  }, [over])
+  }, [over, groupDrop])
   const collapsed = group.collapsed === true
   const editing = s.editingGroupId === group.id
   const groupActivity = projects.map((p) => activity[p.id]).find(Boolean) ?? null
@@ -446,17 +451,39 @@ function GroupBlock({
 
   return (
     <section
-      className={`group${over ? ' drop-into' : ''}`}
+      className={`group${over ? ' drop-into' : ''}${groupDrop ? ` drop-${groupDrop}` : ''}`}
+      data-group={group.id}
       onDragOver={(e) => {
+        // Another group: it lands above this one from its upper half, below from its lower half.
+        if (e.dataTransfer.types.includes('loom/group')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          const r = e.currentTarget.getBoundingClientRect()
+          const side = e.clientY < r.top + r.height / 2 ? 'before' : 'after'
+          if (side !== groupDrop) setGroupDrop(side)
+          return
+        }
         if (!e.dataTransfer.types.includes('loom/project')) return
         e.preventDefault()
         setOver(true)
       }}
       onDragLeave={(e) => {
-        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOver(false)
+        if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return
+        setOver(false)
+        setGroupDrop(null)
       }}
       onDrop={(e) => {
+        const side = groupDrop
         setOver(false)
+        setGroupDrop(null)
+        const moved = e.dataTransfer.getData('loom/group')
+        if (moved) {
+          if (moved === group.id) return
+          const rest = useStore.getState().groups.filter((g) => g.id !== moved)
+          const at = rest.findIndex((g) => g.id === group.id)
+          s.moveGroup(moved, side === 'after' ? (rest[at + 1]?.id ?? null) : group.id)
+          return
+        }
         const id = e.dataTransfer.getData('loom/project')
         if (id) s.moveProject(id, group.id)
       }}
@@ -465,6 +492,11 @@ function GroupBlock({
         className="group-row"
         role="button"
         tabIndex={0}
+        draggable={!editing}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('loom/group', group.id)
+          e.dataTransfer.effectAllowed = 'move'
+        }}
         onClick={() => s.updateGroup(group.id, { collapsed: !collapsed })}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
@@ -613,9 +645,13 @@ export function Sidebar(): ReactNode {
             sessionsByProject={sessionsByProject}
           />
         ))}
+        {/* Groups above, projects on their own below: a faint line between the two. */}
+        {groups.length && loose.length ? <div className="sidebar-divide" role="separator" /> : null}
         <div
           className={`loose${overLoose ? ' drop-into' : ''}`}
           onDragOver={(e) => {
+            // A group let go below the last one goes to the end.
+            if (e.dataTransfer.types.includes('loom/group')) return e.preventDefault()
             if (!e.dataTransfer.types.includes('loom/project')) return
             e.preventDefault()
             setOverLoose(true)
@@ -625,6 +661,8 @@ export function Sidebar(): ReactNode {
           }}
           onDrop={(e) => {
             setOverLoose(false)
+            const moved = e.dataTransfer.getData('loom/group')
+            if (moved) return s.moveGroup(moved, null)
             const id = e.dataTransfer.getData('loom/project')
             if (id) s.moveProject(id, null)
           }}

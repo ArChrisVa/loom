@@ -79,6 +79,7 @@ See what changed, read a side-by-side diff, stage or throw away changes (Loom ke
 ### One sidebar, one tab bar, every project
 
 Every project sits in the sidebar, and every tab (a chat, a file, a terminal, a running site) shares one tab bar, whichever project it belongs to. Group projects; each one picks up its site's favicon. A group can watch a folder: when new folders appear there, the group offers them with one click to add. Open and edit files in Monaco, find any file or chat with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
+Drag projects between groups, and drag the groups themselves into the order you like.
 
 Pictures, videos and sound open in a tab of their own: a picture fits the pane (click it for its real size), a video plays and seeks, and a file that changes on disk is shown afresh.
 

@@ -303,6 +303,22 @@
   border-radius: var(--radius);
 }
 
+/* Where a dragged group lands: a lavender line above or below the group under the pointer */
+.group.drop-before {
+  box-shadow: inset 0 2px 0 var(--light);
+}
+
+.group.drop-after {
+  box-shadow: inset 0 -2px 0 var(--light);
+}
+
+/* Between the groups and the projects that are in none */
+.sidebar-divide {
+  height: 1px;
+  margin: 7px 6px 8px;
+  background: var(--line);
+}
+
 .project {
   position: relative;
   border-radius: var(--radius);
