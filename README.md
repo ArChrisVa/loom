@@ -145,12 +145,15 @@ The first launch walks through signing in to Claude, adding projects and choosin
 | Sidebar | Ctrl+B |
 | Files, Git and Claude panel | Ctrl+Alt+B |
 | Settings | Ctrl+, |
+| Reload Loom | Ctrl+R |
 | Stop Claude | Esc anywhere in the chat |
 | Save a file | Ctrl+S |
 | Next permission mode, in a chat | Shift+Tab |
 
 Every shortcut can be changed in Settings, Keyboard: click Change and press the keys you want.
 Ctrl+Shift+Z stays redo in a file you are editing and in a text field with something to redo.
+Ctrl+R stays the history search in a terminal.
+Reloading starts the window over without stopping anything: chats, terminals and dev servers carry on, and Loom asks first if a file has unsaved changes.
 
 ## Good to know
 

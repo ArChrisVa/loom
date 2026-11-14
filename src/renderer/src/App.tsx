@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
-import { comboOf, keyboardInChat, redoBelongsHere, shortcutOf } from './lib/keys'
+import { comboOf, keyboardInChat, keyboardInTerminal, redoBelongsHere, shortcutOf } from './lib/keys'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { startRemoteAgent } from './remoteAgent'
@@ -67,6 +67,11 @@ function useShortcuts(): void {
           break
         case 'reopenTab':
           s.reopenClosed()
+          break
+        case 'reload':
+          // In a terminal, Ctrl+R searches the shell's history.
+          if (keyboardInTerminal()) return
+          void s.reloadApp()
           break
         case 'newChat':
           s.newChat(tab?.projectId ?? s.projects[0]?.id ?? null)

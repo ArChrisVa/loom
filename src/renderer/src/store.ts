@@ -114,7 +114,8 @@ function clearLive(tabId: string, which: 'all' | 'thinking' = 'all'): void {
  * restarting for an update can say so first.
  */
 function reportUnsaved(get: () => { tabs: Tab[]; dirtyFiles: Record<string, boolean> }): void {
-  let last = ''
+  // Null so the first report always goes: after a reload the list kept for this window is the old one.
+  let last: string | null = null
   const send = (): void => {
     const s = get()
     const names = s.tabs.filter((t) => t.kind === 'file' && s.dirtyFiles[t.id]).map((t) => t.title)
@@ -399,6 +400,8 @@ interface Store extends PersistedState {
   /** Where each of them was showing when it closed: its pane, and the split as it was then. */
   closedPlaces: Record<string, { paneId: string; layout: LayoutNode }>
   reopenClosed: () => void
+  /** Starts the window over from what is saved, after asking about unsaved files. Chats, terminals and servers carry on. */
+  reloadApp: () => Promise<void>
   requestDeleteGroup: (id: string) => Promise<void>
 }
 
@@ -1811,6 +1814,44 @@ export const useStore = create<Store>((set, get) => {
       // The project may have gone meanwhile; the tab still opens, just without it.
       const projectId = tab.projectId && get().projects.some((p) => p.id === tab.projectId) ? tab.projectId : null
       get().openTab({ ...tab, id: uid(), projectId } as Tab)
+    },
+    reloadApp: async () => {
+      if (POPOUT_TAB) return
+      // Tabs in windows of their own come back first, with whatever they hold.
+      const out = Object.keys(get().detached)
+      for (const id of out) void window.loom.popoutClose(id)
+      const until = Date.now() + 4000
+      while (Object.keys(get().detached).length && Date.now() < until) await new Promise((r) => setTimeout(r, 50))
+      const dirty = get().tabs.filter((t) => t.kind === 'file' && get().dirtyFiles[t.id])
+      if (dirty.length) {
+        const one = dirty.length === 1
+        const choice = await get().ask({
+          title: one ? `Save the changes to ${dirty[0].title} before reloading?` : `Save the changes to ${dirty.length} files before reloading?`,
+          body: "Reloading starts the window over. If you don't save, the changes are lost.",
+          items: one ? undefined : dirty.map((t) => t.title),
+          choices: [
+            { id: 'save', label: one ? 'Save and reload' : 'Save all and reload', kind: 'primary' },
+            { id: 'discard', label: 'Reload without saving', kind: 'danger' },
+            { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+          ],
+          cancel: 'cancel',
+          focus: 'save'
+        })
+        if (choice === 'cancel') return
+        if (choice === 'save') {
+          for (const t of dirty) {
+            const saved = (await fileSavers.get(t.id)?.()) ?? false
+            if (!saved) {
+              get().activate(t.id)
+              get().showToast(`${t.title} wasn't saved, so Loom did not reload.`)
+              return
+            }
+          }
+        }
+      }
+      // What is open goes to disk now; the reloaded window starts from it.
+      window.loom.saveState(pickPersisted(get()))
+      await window.loom.reloadApp()
     },
     requestRemoveProject: async (id) => {
       const p = get().projects.find((x) => x.id === id)

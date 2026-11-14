@@ -453,6 +453,14 @@ function registerIpc(): void {
     launchPaths = []
     return paths
   })
+  // Ctrl+R: the main window starts over from what is saved. Chats, terminals and dev servers live
+  // here, so they carry on and the reloaded window picks them up again. A tab still in a window
+  // of its own (the window has already asked them all back) comes home with the reload.
+  ipcMain.handle('app:reload', (e) => {
+    if (!win || win.isDestroyed() || e.sender !== win.webContents) return
+    closeAllPopouts()
+    win.webContents.reload()
+  })
   ipcMain.handle('app:pickFile', async (_e, title: string) => {
     if (!win) return null
     const r = await dialog.showOpenDialog(win, { properties: ['openFile'], title })

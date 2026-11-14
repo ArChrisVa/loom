@@ -20,6 +20,7 @@ export type ShortcutId =
   | 'toggleSidebar'
   | 'togglePanel'
   | 'settings'
+  | 'reload'
   | 'cycleMode'
   | 'sendBackground'
   | 'saveFile'
@@ -50,6 +51,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'toggleSidebar', label: 'Show or hide the sidebar', keys: 'Ctrl+B' },
   { id: 'togglePanel', label: 'Show or hide the Files, Git and Claude panel', keys: 'Ctrl+Alt+B' },
   { id: 'settings', label: 'Settings', keys: 'Ctrl+,' },
+  { id: 'reload', label: 'Reload Loom', keys: 'Ctrl+R', where: 'not in a terminal or a preview' },
   { id: 'cycleMode', label: 'Next permission mode', keys: 'Shift+Tab', where: 'in a chat' },
   { id: 'sendBackground', label: 'Send to background', keys: 'Alt+Enter', where: 'in the message box' },
   { id: 'saveFile', label: 'Save a file', keys: 'Ctrl+S', where: 'in a file' }
@@ -186,6 +188,11 @@ export function redoBelongsHere(): boolean {
   } catch {
     return false
   }
+}
+
+/** Whether the keyboard is in a terminal, where Ctrl+R searches the shell's history. */
+export function keyboardInTerminal(): boolean {
+  return !!(document.activeElement as HTMLElement | null)?.closest('.xterm')
 }
 
 /**

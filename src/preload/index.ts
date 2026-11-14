@@ -52,6 +52,8 @@ const api = {
   pickFiles: (startIn?: string): Promise<string[]> => ipcRenderer.invoke('app:pickFiles', startIn),
   /** Files and folders Loom was started with ("Open with"), given once */
   launchPaths: (): Promise<string[]> => ipcRenderer.invoke('app:launchPaths'),
+  /** Starts the main window over from what is saved; chats, terminals and servers carry on */
+  reloadApp: (): Promise<void> => ipcRenderer.invoke('app:reload'),
   /** Files and folders sent to the running Loom by "Open with" */
   onOpenPaths: (cb: (paths: string[]) => void): (() => void) => {
     const listener = (_e: unknown, paths: string[]): void => cb(paths)
