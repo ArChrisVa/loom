@@ -1550,6 +1550,12 @@
   font-size: 11.5px;
 }
 
+/* After the meters: when the nearest limit resets */
+.meter-reset {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
 .servers-pop .usage-foot {
   margin-top: 4px;
 }

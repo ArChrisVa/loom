@@ -25,11 +25,25 @@ function modelWeek(l: UsageLimit): string | null {
 
 function resetText(ms: number | null): string {
   if (!ms) return ''
-  const d = new Date(ms)
+  // To the minute: a reset reported for 20:59:59 is 21:00.
+  const d = new Date(Math.round(ms / 60_000) * 60_000)
   const when = d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   const hours = Math.round((ms - Date.now()) / 3_600_000)
   const rel = hours < 1 ? 'within the hour' : hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
   return `Resets ${when}, ${rel}`
+}
+
+/** "17 Nov 21:00": the day and the time, the same way whether it is today or next week. */
+function shortWhen(ms: number): string {
+  // To the minute: a reset reported for 20:59:59 is 21:00.
+  const d = new Date(Math.round(ms / 60_000) * 60_000)
+  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+}
+
+/** The limit that resets soonest, of the ones on show. */
+function nextReset(list: UsageLimit[]): UsageLimit | null {
+  const now = Date.now()
+  return list.filter((l) => l.resetsAt && l.resetsAt > now).sort((a, b) => a.resetsAt! - b.resetsAt!)[0] ?? null
 }
 
 function Bar({ l, stopAt }: { l: UsageLimit; stopAt: number | null }): ReactNode {
@@ -135,6 +149,8 @@ function UsageMeters(): ReactNode {
   const main = usage.limits.filter((l) => l.label === '5h' || l.label === 'Week')
   const models = usage.limits.filter((l) => modelWeek(l))
   const list = main.length || models.length ? [...main, ...models] : usage.limits.slice(0, 2)
+  // When the nearest limit starts over: the one that tells you how long a full meter lasts.
+  const soon = nextReset(list)
   return (
     <>
       <button className="sb-usage" title="Plan limits (or type /usage in a chat)" aria-expanded={open} onClick={() => useStore.getState().set({ usageOpen: !open })}>
@@ -149,6 +165,11 @@ function UsageMeters(): ReactNode {
         ) : (
           <span className="meter-label">Limits</span>
         )}
+        {soon ? (
+          <span className="meter-reset" title={`${soon.label === '5h' ? 'The 5-hour session' : soon.label === 'Week' ? 'The week' : `${modelWeek(soon) ?? soon.label}'s week`} is the next to reset. ${resetText(soon.resetsAt)}`}>
+            Reset {shortWhen(soon.resetsAt!)}
+          </span>
+        ) : null}
       </button>
     </>
   )
