@@ -38,6 +38,7 @@ import type {
 } from '@shared/types'
 import { assistantItems, BACKGROUND_ASK, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
+import { LOOM_SERVER, loomTools, READ_ONLY_TOOLS } from './loomTools'
 import { skillOrigin } from './skillOrigin'
 
 type Sdk = typeof import('@anthropic-ai/claude-agent-sdk')
@@ -602,6 +603,14 @@ class ChatSession {
         this.stderrTail = (this.stderrTail + data).slice(-4000)
       }
     }
+    // Loom's own tools: dev servers that stay up until stopped. Never in the way of the chat itself.
+    if (settings.loomServers !== false) {
+      try {
+        options.mcpServers = { [LOOM_SERVER]: await loomTools(sdk, { cwd: this.opts.cwd, projectId: this.opts.projectId ?? null, projectPath: this.opts.projectPath }) }
+      } catch (e) {
+        console.error("[chat] Loom's tools are not available", e)
+      }
+    }
     this.q = sdk.query({ prompt: this.queue, options })
     void this.pump(this.q)
   }
@@ -886,6 +895,8 @@ class ChatSession {
   }
 
   private canUseTool: CanUseTool = (toolName, input, { signal, suggestions, decisionReason, blockedPath }) => {
+    // Reading how one of Loom's servers is doing changes nothing: no need to ask.
+    if (READ_ONLY_TOOLS.has(toolName)) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     const requestId = randomUUID()
     let request: PermissionRequest
     if (toolName === 'AskUserQuestion') {

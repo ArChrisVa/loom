@@ -2,6 +2,7 @@ import { Check, ChevronDown, Copy, Download, ExternalLink, Globe, LoaderCircle, 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Project, RunTarget, ServerInfo, TunnelInfo } from '@shared/types'
+import { baseName } from '../lib/paths'
 import { useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
 
@@ -382,7 +383,10 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
           <div key={x.id} className="srv-row thread" data-color={p?.color}>
             <ProjectMark project={p} size={14} />
             <div className="srv-row-text">
-              <span className="srv-row-name">{p?.name ?? 'Removed project'}</span>
+              <span className="srv-row-name">
+                {p?.name ?? (x.startedBy ? baseName(x.target.cwd) : 'Removed project')}
+                {x.startedBy === 'claude' ? <span className="srv-row-by">Started by Claude</span> : null}
+              </span>
               <span className="srv-row-cmd" title={x.target.detail}>
                 {x.target.command}
                 {x.target.where ? ` in ${x.target.where}` : ''}

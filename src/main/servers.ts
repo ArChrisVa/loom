@@ -505,13 +505,13 @@ function killTree(proc: ChildProcess): void {
 }
 
 /** Starts a target, after installing its packages when `install` is set. */
-export async function startServer(projectId: string, target: RunTarget, install = false): Promise<ServerInfo> {
+export async function startServer(projectId: string, target: RunTarget, install = false, startedBy?: 'claude'): Promise<ServerInfo> {
   const id = `${projectId}|${target.id}`
   const step = install ? await installStep(target) : null
   const prev = servers.get(id)
   if (prev?.proc || prev?.adopted) return { ...prev.info }
   const s: Server = {
-    info: { id, projectId, target, status: 'starting', url: null, exitCode: null, startedAt: Date.now(), installing: !!step },
+    info: { id, projectId, target, status: 'starting', url: null, exitCode: null, startedAt: Date.now(), installing: !!step, startedBy },
     proc: null,
     log: prev?.log ?? new OutputTail(MAX_LOG),
     end: prev?.end ?? 0,

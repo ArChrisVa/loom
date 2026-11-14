@@ -495,6 +495,8 @@ export const useStore = create<Store>((set, get) => {
     if (c.opened) return
     await window.loom.chatOpen(tab.id, {
       cwd: tab.cwd,
+      projectId: tab.projectId,
+      projectPath: get().projects.find((p) => p.id === tab.projectId)?.path ?? null,
       sessionId: tab.sessionId,
       model: tab.model ?? null,
       permissionMode: tab.permissionMode ?? null,

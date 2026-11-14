@@ -13,7 +13,9 @@ const ASK_TITLES: Record<string, string> = {
   NotebookEdit: 'Edit this notebook?',
   WebFetch: 'Fetch this page?',
   WebSearch: 'Search the web?',
-  Read: 'Read this file?'
+  Read: 'Read this file?',
+  mcp__loom__start_dev_server: 'Start this server in Loom?',
+  mcp__loom__stop_dev_server: 'Stop this server?'
 }
 
 /** Is the person typing or working somewhere? Then a card that appears must not take the keyboard. */

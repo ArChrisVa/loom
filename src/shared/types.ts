@@ -225,6 +225,8 @@ export interface ServerInfo {
   installing?: boolean
   /** A server for this project that was already running when Loom tried to start one: Loom shows it, but didn't start it */
   adopted?: boolean
+  /** Claude started it from a chat, through Loom, so it has no time limit */
+  startedBy?: 'claude'
 }
 
 /** A public link to a dev server, through a Cloudflare Quick Tunnel, for showing a site to a client. */
@@ -272,6 +274,11 @@ export interface LoomSettings {
   keys?: Record<string, string>
   /** How Claude's steps show in a chat: quiet tones the dots, the line and the step names down */
   timeline?: 'full' | 'quiet'
+  /**
+   * Whether Claude starts dev servers through Loom, where they run until stopped. Off leaves it
+   * to Claude Code's own background commands, which it stops after two hours at most. On unless false.
+   */
+  loomServers?: boolean
   /** The last version whose What's new was shown (or skipped, on a first install) */
   lastSeenVersion?: string
   notifyWhenDone: boolean
@@ -461,6 +468,10 @@ export type ChatEvent =
 
 export interface ChatStartOptions {
   cwd: string
+  /** The project the chat belongs to, when it has one: servers Claude starts are listed under it */
+  projectId?: string | null
+  /** That project's folder */
+  projectPath?: string | null
   sessionId: string | null
   model: string | null
   permissionMode: PermissionMode | null

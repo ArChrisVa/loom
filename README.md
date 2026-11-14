@@ -61,6 +61,8 @@ Loom reads each project's `package.json` for `dev`, `start`, `serve` and similar
 
 To show a site to a client, click the cloud next to its server in that list. Loom opens a public link through a Cloudflare Quick Tunnel (`https://….trycloudflare.com`, no Cloudflare account or domain needed) and tells you once it answers; click the link to copy it. Anyone with the link can see the site until you click the cloud again, the server stops or Loom quits, and an orange cloud stays in the status bar while it is public. It needs Cloudflare's `cloudflared`, which Loom offers to install the first time.
 
+Ask Claude to start a dev server and it starts it through Loom, so it is listed with the others and keeps running until you stop it. On its own, Claude Code stops a command it runs in the background after two hours at most. Settings, Claude turns this off.
+
 ### Split it the way you work
 
 <p align="center">

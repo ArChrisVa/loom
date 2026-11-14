@@ -99,6 +99,18 @@ export function describeTool(name: string, raw: unknown): ToolView {
       const qs = Array.isArray(input.questions) ? (input.questions as Json[]) : []
       return { summary: qs.map((q) => str(q.question)).join(' / ') }
     }
+    // Loom's own tools: the command is what matters, as with Bash.
+    case 'mcp__loom__start_dev_server': {
+      const cmd = str(input.command)
+      const cwd = str(input.cwd)
+      return { summary: cmd, detail: cwd ? `${cmd}
+in ${cwd}` : cmd }
+    }
+    case 'mcp__loom__stop_dev_server':
+    case 'mcp__loom__dev_server_output':
+      return { summary: serverName(str(input.id)) }
+    case 'mcp__loom__list_dev_servers':
+      return { summary: '' }
     default: {
       if (name.startsWith('mcp__')) {
         const [, server, tool] = name.split('__')
@@ -108,6 +120,11 @@ export function describeTool(name: string, raw: unknown): ToolView {
       return { summary: firstLine(firstString ?? ''), detail: pretty(input) }
     }
   }
+}
+
+/** A server's id is "<project>|<folder>#<script>": the part after the bar says which one. */
+function serverName(id: string): string {
+  return id.slice(id.indexOf('|') + 1)
 }
 
 export function toolResultText(content: unknown): string {

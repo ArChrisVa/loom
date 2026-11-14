@@ -56,7 +56,12 @@ const TOOL_TITLES: Record<string, string> = {
   MultiEdit: 'Edit',
   NotebookEdit: 'Edit',
   WebFetch: 'Fetch',
-  WebSearch: 'Web search'
+  WebSearch: 'Web search',
+  // Loom's own tools, by what they do
+  mcp__loom__start_dev_server: 'Start server',
+  mcp__loom__stop_dev_server: 'Stop server',
+  mcp__loom__dev_server_output: 'Server output',
+  mcp__loom__list_dev_servers: 'Dev servers'
 }
 
 /** The tool's name as the timeline shows it: "Bash", "Read", "playwright: browser click". */

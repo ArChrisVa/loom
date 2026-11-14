@@ -636,6 +636,15 @@ export function SettingsView(): ReactNode {
             </div>
           </Row>
           <Row
+            title="Dev servers Claude starts"
+            hint="Claude Code stops a command it runs in the background after two hours at most, a dev server included. Started through Loom, a server keeps running until you stop it, and shows in Dev servers in the status bar. Applies to chats you start or restart from now on."
+          >
+            <label className="check-row">
+              <input type="checkbox" checked={st.loomServers !== false} onChange={(e) => update({ loomServers: e.target.checked })} />
+              <span>Run them through Loom, with no time limit</span>
+            </label>
+          </Row>
+          <Row
             title="Keep copies of moved chats"
             hint="Moving a chat to another project keeps a copy of the original in .claude\chat-backups, in your user folder. Copies older than this are deleted for good."
           >
