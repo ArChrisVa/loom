@@ -329,6 +329,8 @@ interface Store extends PersistedState {
   interrupt: (tabId: string) => void
   setModel: (tabId: string, model: string | null) => void
   setMode: (tabId: string, mode: PermissionMode) => void
+  /** The chat's next permission mode, in the order the menu lists them (Shift+Tab) */
+  cycleMode: (tabId: string) => void
   setEffort: (tabId: string, effort: EffortLevel | null) => void
   setUltracode: (tabId: string, on: boolean) => void
   loadIcon: (projectId: string) => Promise<void>
@@ -1166,6 +1168,13 @@ export const useStore = create<Store>((set, get) => {
       get().updateTab(tabId, { permissionMode: mode })
       patchChat(tabId, () => ({ permissionMode: mode }))
       if (get().chat(tabId).opened) void window.loom.chatSetMode(tabId, mode)
+    },
+    cycleMode: (tabId) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (!tab || tab.kind !== 'chat') return
+      const order: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions']
+      const now = tab.permissionMode ?? get().chat(tabId).permissionMode ?? get().settings.defaultPermissionMode ?? 'default'
+      get().setMode(tabId, order[(order.indexOf(now) + 1) % order.length])
     },
     setEffort: (tabId, effort) => {
       get().updateTab(tabId, { effort } as Partial<ChatTab>)

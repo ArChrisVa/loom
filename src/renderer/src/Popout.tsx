@@ -6,7 +6,7 @@ import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
 import { UsagePopover } from './components/StatusBar'
 import { FileDropHint, useFileDrop } from './components/FileDrop'
-import { shortcutOf, useKeys } from './lib/keys'
+import { keyboardInChat, shortcutOf, useKeys } from './lib/keys'
 import { TabContent } from './components/Workspace'
 import { startRemoteAgent } from './remoteAgent'
 import { useStore } from './store'
@@ -28,9 +28,13 @@ export function Popout(): ReactNode {
       const s = useStore.getState()
       if (s.confirm) return
       const id = shortcutOf(e, s.settings.keys)
+      const tab = s.tabs[0]
       if (id === 'closeTab') {
         e.preventDefault()
         window.close()
+      } else if (id === 'cycleMode' && tab?.kind === 'chat' && keyboardInChat()) {
+        e.preventDefault()
+        s.cycleMode(tab.id)
       }
     }
     window.addEventListener('keydown', onKey, true)

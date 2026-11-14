@@ -143,6 +143,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 | Settings | Ctrl+, |
 | Stop Claude | Esc anywhere in the chat |
 | Save a file | Ctrl+S |
+| Next permission mode, in a chat | Shift+Tab |
 
 Every shortcut can be changed in Settings, Keyboard: click Change and press the keys you want.
 

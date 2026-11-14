@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
-import { shortcutOf } from './lib/keys'
+import { keyboardInChat, shortcutOf } from './lib/keys'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { startRemoteAgent } from './remoteAgent'
@@ -86,6 +86,11 @@ function useShortcuts(): void {
           break
         case 'settings':
           s.openSettings()
+          break
+        case 'cycleMode':
+          // Only with the keyboard in a chat: everywhere else Shift+Tab steps back between controls.
+          if (tab?.kind !== 'chat' || !keyboardInChat()) return
+          s.cycleMode(tab.id)
           break
         default: {
           // Ctrl+1 to Ctrl+9 go to a tab by its place; 9 is the last one. These stay as they are.

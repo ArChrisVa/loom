@@ -20,6 +20,7 @@ export type ShortcutId =
   | 'toggleSidebar'
   | 'togglePanel'
   | 'settings'
+  | 'cycleMode'
   | 'sendBackground'
   | 'saveFile'
 
@@ -49,6 +50,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'toggleSidebar', label: 'Show or hide the sidebar', keys: 'Ctrl+B' },
   { id: 'togglePanel', label: 'Show or hide the Files, Git and Claude panel', keys: 'Ctrl+Alt+B' },
   { id: 'settings', label: 'Settings', keys: 'Ctrl+,' },
+  { id: 'cycleMode', label: 'Next permission mode', keys: 'Shift+Tab', where: 'in a chat' },
   { id: 'sendBackground', label: 'Send to background', keys: 'Alt+Enter', where: 'in the message box' },
   { id: 'saveFile', label: 'Save a file', keys: 'Ctrl+S', where: 'in a file' }
 ]
@@ -159,7 +161,8 @@ export function whyNot(combo: string, id: ShortcutId, chosen: KeyChoices | undef
   if (TAKEN[combo]) return `${combo} is kept for ${TAKEN[combo]}.`
   if (/^Ctrl\+[1-9]$/.test(combo)) return `${combo} goes to a tab by its number.`
   const functionKey = /^F\d+$/.test(key)
-  if (!held.includes('Ctrl') && !held.includes('Alt') && !functionKey) return 'Use Ctrl or Alt with it, so it never gets in the way of typing.'
+  const quiet = functionKey || (combo === 'Shift+Tab' && id === 'cycleMode')
+  if (!held.includes('Ctrl') && !held.includes('Alt') && !quiet) return 'Use Ctrl or Alt with it, so it never gets in the way of typing.'
   const other = SHORTCUTS.find((s) => s.id !== id && (keysOf(s.id, chosen) === combo || (!chosen?.[s.id] && s.also?.includes(combo))))
   if (other) return `${combo} is already "${other.label}".`
   return null
@@ -168,4 +171,17 @@ export function whyNot(combo: string, id: ShortcutId, chosen: KeyChoices | undef
 /** The keys a shortcut has now, for hints and tooltips; follows Settings. */
 export function useKeys(id: ShortcutId): string {
   return useStore((s) => keysOf(id, s.settings.keys))
+}
+
+/**
+ * Whether the keyboard is in the chat in front: in its message box, or on nothing in particular.
+ * Shift+Tab changes the permission mode only then. On a button or a field, in a menu or a
+ * dialog, it keeps stepping back between controls, which people who use the keyboard rely on.
+ */
+export function keyboardInChat(): boolean {
+  if (document.querySelector('.confirm-backdrop, .menu, [role="dialog"], .palette')) return false
+  const el = document.activeElement as HTMLElement | null
+  if (!el || el === document.body) return true
+  if (!el.closest('.tab-panel:not([hidden]) .chat, .popout .chat')) return false
+  return el.classList.contains('composer-input') || !el.matches('button, a, input, select, textarea, summary, [role="button"]')
 }
