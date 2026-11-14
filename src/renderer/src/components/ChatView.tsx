@@ -239,6 +239,12 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     })
   }, [visible])
 
+  // Messages you sent while Claude was mid-thought or mid-reply show under what is being written:
+  // above it they would be out of sight behind a long thought until it ended.
+  const lateIds = (thinking || partial) && chat.late?.length ? chat.late : null
+  const lateRows = lateIds ? rows.filter((r) => r.item.kind === 'user' && lateIds.includes(r.item.id)) : []
+  const mainRows = lateRows.length ? rows.filter((r) => !lateRows.includes(r)) : rows
+
   // Agents and background tasks sit in the timeline where they started, after the step that was
   // the latest then, and scroll away with it like any other step. The header's Agents button and
   // the status bar keep saying they run. '' holds the ones that started before the steps on show.
@@ -440,7 +446,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               </div>
             ) : null}
             {agentsRow(agentsAfter.get(''))}
-            {rows.map(({ item, time }) => (
+            {mainRows.map(({ item, time }) => (
               <Fragment key={item.id}>
                 {item.kind === 'user' ? (
                   <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user" data-prompt={item.id}>
@@ -475,6 +481,12 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
                 </div>
               </div>
             ) : null}
+            {lateRows.map(({ item, time }) => (
+              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className="turn-user" data-prompt={item.id}>
+                {time ? <div className="turn-time">{time}</div> : null}
+                <ChatItemView item={item} cwd={tab.cwd} />
+              </div>
+            ))}
             {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
               <div ref={rise} className="tl tl-live tl-working">
                 <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />

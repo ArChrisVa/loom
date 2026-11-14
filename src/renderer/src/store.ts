@@ -60,6 +60,12 @@ import { playTone } from './lib/tones'
 
 export interface ChatRuntime {
   items: ChatItem[]
+  /**
+   * Your messages sent while Claude was mid-thought or mid-reply, by id. They show below what is
+   * being written (where you are looking, not above a long thought), and when that step is done
+   * it takes its place before them.
+   */
+  late?: string[]
   /** You switched the model and the timeline says so: Claude's own note on the next reply would repeat it */
   switchNoted?: boolean
   status: ChatStatus
@@ -1243,7 +1249,11 @@ export const useStore = create<Store>((set, get) => {
       )
       // A real UUID: Claude Code tags the message with it, and Stop names the ones it takes back by it.
       const id = givenId ?? crypto.randomUUID()
+      // Claude is in the middle of a thought or of writing its reply: the message shows under it.
+      const live = useLive.getState()
+      const midStep = !!(live.thinking[tabId] || live.partial[tabId])
       patchChat(tabId, (c) => ({
+        ...(midStep ? { late: [...(c.late ?? []), id] } : {}),
         items: [
           ...c.items,
           {
@@ -1575,15 +1585,22 @@ export const useStore = create<Store>((set, get) => {
             // The first reply after you switched: its "switched to" note would say it twice.
             const replied = c.switchNoted && ev.items.some((x) => x.kind === 'assistant' || x.kind === 'thinking' || x.kind === 'tool')
             const incoming = replied ? ev.items.filter((x) => !(x.kind === 'note' && x.id.startsWith('model:'))) : ev.items
+            // The thought or the reply that was being written when you sent a message is done: it
+            // goes before that message (with the rest of what Claude said in the same breath),
+            // and the message stays where it has been showing, under it.
+            const late = new Set(c.late ?? [])
+            const closing = late.size > 0 && incoming.some((x) => x.kind === 'thinking' || x.kind === 'assistant')
             for (const raw of incoming) {
               // Live steps get the time they arrived, as saved ones carry theirs. One sent again
               // (a step updated in place) keeps the time it first had.
               const at = items.findIndex((x) => x.id === raw.id)
               const item = raw.ts ? raw : { ...raw, ts: items[at]?.ts ?? now }
+              const before = closing && at < 0 ? items.findIndex((x) => late.has(x.id)) : -1
               if (at >= 0) items[at] = item
+              else if (before >= 0) items.splice(before, 0, item)
               else items.push(item)
             }
-            return replied ? { items, switchNoted: false } : { items }
+            return { items, ...(replied ? { switchNoted: false } : {}), ...(closing ? { late: [] } : {}) }
           })
           break
         case 'tool-result':
@@ -1613,6 +1630,7 @@ export const useStore = create<Store>((set, get) => {
           if (ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle') clearLive(tabId, 'thinking')
           patchChat(tabId, (c) => ({
             status: ev.status,
+            ...(ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle' ? { late: [] } : {}),
             ...(ev.status === 'stopped' || ev.status === 'error' ? { activity: null } : {}),
             error: ev.error,
             // A turn Claude started by itself has no send to time it from.
