@@ -390,6 +390,17 @@
   width: min(520px, 92vw);
   max-height: 76vh;
   gap: 12px;
+}
+
+/* The list between the heading and the buttons: it alone scrolls when there is much to say */
+.whats-new-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  /* The scrollbar sits in the dialog's own margin, clear of the text */
+  margin-right: -12px;
+  padding-right: 12px;
   overflow-y: auto;
 }
 

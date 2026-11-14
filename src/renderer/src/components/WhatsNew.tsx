@@ -38,7 +38,7 @@ export function WhatsNew(): ReactNode {
   useEffect(() => {
     if (!notes) return
     const before = document.activeElement as HTMLElement | null
-    box.current?.querySelector<HTMLButtonElement>('[data-choice="ok"]')?.focus()
+    box.current?.querySelector<HTMLButtonElement>('[data-choice="ok"]')?.focus({ preventScroll: true })
     return () => before?.focus?.({ preventScroll: true })
   }, [notes])
   if (!notes?.length) return null
@@ -64,24 +64,27 @@ export function WhatsNew(): ReactNode {
         <h2 id="whats-new-title" className="confirm-title">
           What&apos;s new in Loom {newest}
         </h2>
-        {notes.map((r) => (
-          <section key={r.version} className="whats-new-release">
-            {notes.length > 1 ? <h3 className="whats-new-version">In {r.version}</h3> : null}
-            <ul className="whats-new-list">
-              {r.highlights.map((h) => (
-                <li key={h.title} className="whats-new-item">
-                  <span className={`whats-new-icon is-${h.icon}`} aria-hidden="true">
-                    <Icon name={h.icon} />
-                  </span>
-                  <span className="whats-new-text">
-                    <span className="whats-new-head">{h.title}</span>
-                    <span className="whats-new-body">{h.body}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {/* Only the list scrolls: the heading and the buttons stay in view, and a long list starts at its top. */}
+        <div className="whats-new-scroll">
+          {notes.map((r) => (
+            <section key={r.version} className="whats-new-release">
+              {notes.length > 1 ? <h3 className="whats-new-version">In {r.version}</h3> : null}
+              <ul className="whats-new-list">
+                {r.highlights.map((h) => (
+                  <li key={h.title} className="whats-new-item">
+                    <span className={`whats-new-icon is-${h.icon}`} aria-hidden="true">
+                      <Icon name={h.icon} />
+                    </span>
+                    <span className="whats-new-text">
+                      <span className="whats-new-head">{h.title}</span>
+                      <span className="whats-new-body">{h.body}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
         <div className="confirm-actions">
           <button className="btn ghost" onClick={() => void window.loom.updateNotes(newest)}>
             All changes
