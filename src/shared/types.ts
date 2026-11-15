@@ -344,6 +344,14 @@ export const DEFAULT_MODELS: ModelOption[] = [
   { value: 'haiku', label: 'Haiku' }
 ]
 
+/**
+ * Whether a list of models is still the short one Loom starts with, before Claude Code has said
+ * which models the account has: none of its models comes with a description.
+ */
+export function isStarterModels(models: ModelOption[]): boolean {
+  return !models.some((m) => m.value !== '' && !!m.description)
+}
+
 // ---------- Chat ----------
 
 /** An image attached to a message: a small thumbnail, plus the full image or a way to fetch it. */

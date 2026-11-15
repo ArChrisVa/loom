@@ -2,7 +2,7 @@ import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSqua
 import { comboOf, keysOf, SHORTCUTS, whyNot, type KeyChoices, type ShortcutId } from '../lib/keys'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, TrashedChat, UpdateStatus } from '@shared/types'
+import { isStarterModels, type AuthStatus, type ClaudeSource, type EffortLevel, type LoomSettings, type NotifySound, type PermissionMode, type ShellChoice, type TrashedChat, type UpdateStatus } from '@shared/types'
 import { baseName, projectForPath, sizeText, timeAgo } from '../lib/paths'
 import { useStore, type SettingsSection } from '../store'
 import { ALL_EFFORTS, EFFORT_LABELS, MODE_OPTIONS } from './Composer'
@@ -215,7 +215,9 @@ function NewChatRows({ model, effort, update }: { model: string | null | undefin
     <>
       <Row
         title="Model for new chats"
-        hint="Every new chat starts with this model. Picking another in a chat changes that chat only. Claude Code's default is what Claude Code recommends on this PC, and can differ from one account or version to another."
+        hint={`Every new chat starts with this model. Picking another in a chat changes that chat only. Claude Code's default is what Claude Code recommends on this PC, and can differ from one account or version to another.${
+          isStarterModels(known) ? ' This is the short list Loom starts with: the full one, with what each model is for, comes from Claude Code once it is installed and signed in.' : ''
+        }`}
       >
         <Dropdown<string> value={model || ''} options={models} onChange={(v) => update({ newChatModel: v || null })} />
       </Row>
@@ -543,6 +545,7 @@ export function SettingsView(): ReactNode {
   useEffect(() => {
     void window.loom.claudeInfo().then((next) => useStore.getState().set({ info: next }))
     void useStore.getState().refreshTrash()
+    useStore.getState().ensureModels()
   }, [])
   const update = (patch: Partial<LoomSettings>): void => s.set({ settings: { ...st, ...patch } })
 

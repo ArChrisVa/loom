@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   THREAD_COLORS,
+  isStarterModels,
   type BrowserTab,
   type ChatEvent,
   type ChatItem,
@@ -388,6 +389,8 @@ interface Store extends PersistedState {
   dismissServer: (serverId: string) => void
   showServerOutput: (serverId: string) => void
   refreshUsage: (force?: boolean) => Promise<void>
+  /** Asks Claude Code for the account's models when the list is still the short one Loom starts with. */
+  ensureModels: () => void
   respond: (tabId: string, requestId: string, response: PermissionResponse) => void
   setDraft: (tabId: string, draft: string) => void
   setAttachments: (tabId: string, attachments: ImageAttachment[]) => void
@@ -480,6 +483,9 @@ function nextColor(projects: Project[]): Project['color'] {
   for (const p of projects) used.set(p.color, (used.get(p.color) ?? 0) + 1)
   return [...THREAD_COLORS].sort((a, b) => (used.get(a) ?? 0) - (used.get(b) ?? 0))[0]
 }
+
+/** When the account's models were last asked for because the list was still the starter one */
+let modelsAskedAt = 0
 
 /** Titles Claude wrote for new chats that had no id yet to be saved under, by tab. */
 const titlesToSave = new Map<string, string>()
@@ -1004,6 +1010,8 @@ export const useStore = create<Store>((set, get) => {
       const project = get().projects.find((p) => p.id === projectId) ?? null
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
       get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', ...get().chatDefaults() })
+      // A first chat on a new PC: its model menu should have the account's models, not the short list.
+      get().ensureModels()
     },
     moveChat: async (ref, projectId) => {
       if (POPOUT_TAB) return
@@ -1522,6 +1530,12 @@ export const useStore = create<Store>((set, get) => {
       const server = get().servers.find((x) => x.id === serverId)
       if (!server) return
       get().openTab({ id: uid(), kind: 'server', projectId: server.projectId, serverId, title: server.target.command })
+    },
+    ensureModels: () => {
+      if (!isStarterModels(get().knownModels) || Date.now() - modelsAskedAt < 15_000) return
+      modelsAskedAt = Date.now()
+      // The models come with the plan limits reading.
+      void window.loom.getUsage(true).catch(() => undefined)
     },
     refreshUsage: async (force) => {
       if (force) set({ usageChecking: true })

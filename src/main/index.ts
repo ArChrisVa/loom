@@ -410,12 +410,17 @@ const usageDeps = {
   executable: executableFor,
   settings,
   onModels: (models: Parameters<typeof modelOptions>[0]) => {
+    modelsKnown = true
     for (const w of BrowserWindow.getAllWindows()) if (!w.webContents.isDestroyed()) w.webContents.send('models:update', modelOptions(models))
   }
 }
+/** Whether Claude Code has said which models this account has, since Loom started or the account changed */
+let modelsKnown = false
+let modelsAskedAt = 0
 function accountChanged(): void {
   releaseIdleChats()
   forgetUsage(win?.webContents ?? null)
+  modelsKnown = false
   usageNow(true)
 }
 
@@ -469,7 +474,16 @@ function registerIpc(): void {
     return r.canceled ? null : r.filePaths[0] ?? null
   })
   ipcMain.handle('app:claudeInfo', () => claudeInfo())
-  ipcMain.handle('claude:auth', () => claudeAuthStatus(settings()))
+  ipcMain.handle('claude:auth', async () => {
+    const auth = await claudeAuthStatus(settings())
+    // Signed in, and the account's models not asked for yet (Claude Code was installed or signed
+    // in to a moment ago, on a new PC say): asked now, not at the next reading minutes later.
+    if (auth.loggedIn && !modelsKnown && Date.now() - modelsAskedAt > 15_000) {
+      modelsAskedAt = Date.now()
+      usageNow(true)
+    }
+    return auth
+  })
   ipcMain.handle('claude:logout', async () => {
     const r = await claudeLogout(settings())
     if (r.ok) accountChanged()

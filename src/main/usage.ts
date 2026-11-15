@@ -170,9 +170,11 @@ export function refreshUsage(
     try {
       const live = deps.liveQuery()
       if (live) {
+        // The models first, and on their own: an account with no plan limits to report (or a
+        // reading that fails) still gets its full list of models.
+        await inTime(live.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
         response = await inTime(live.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
         email = await inTime(live.accountInfo()).then((a) => a.email, () => undefined)
-        await inTime(live.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
       } else {
         const sdk = await inTime(deps.sdk())
         let release: ((r: IteratorResult<never>) => void) | null = null
@@ -192,9 +194,9 @@ export function refreshUsage(
         })
         try {
           await inTime(q.initializationResult())
+          await inTime(q.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
           response = await inTime(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
           email = await inTime(q.accountInfo()).then((a) => a.email, () => undefined)
-          await inTime(q.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
         } finally {
           try {
             q.close()
