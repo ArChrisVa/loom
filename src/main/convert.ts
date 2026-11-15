@@ -1,7 +1,7 @@
 // Turns Claude Code transcript and SDK messages into the small, display-ready items the UI renders.
 // Attached images stay in the main process (images.ts); the renderer gets thumbnails and a reference.
 
-import type { ChatContext, ChatContextText, ChatItem, ImagePreview } from '@shared/types'
+import type { ChatAuthor, ChatContext, ChatContextText, ChatItem, ImagePreview } from '@shared/types'
 import { keepImage } from './images'
 
 const MAX_RESULT = 8000
@@ -201,17 +201,45 @@ export function contextParts(context: ChatContextText[]): string[] {
     )
 }
 
-/** Takes the chats brought in off the front of a message: what is left, and their names. */
-function takeContext(raw: string): { rest: string; context: ChatContext[] } {
+/**
+ * In a chat that members of a team take turns in, each message says who wrote it: a part of its
+ * own ahead of the person's words, like the chats brought in. Claude reads it too, so it knows
+ * more than one person is talking; the chat shows the name beside the message.
+ */
+const AUTHOR_TAG = 'loom-author'
+const AUTHOR_START = new RegExp(`^\\s*<${AUTHOR_TAG}((?:\\s+[a-z]+="[^"]*")*)\\s*>[\\s\\S]*?</${AUTHOR_TAG}>\\s*`)
+
+/** Who wrote a message, as Claude gets it. */
+export function authorPart(author: ChatAuthor): string {
+  return [
+    `<${AUTHOR_TAG}${author.id ? ` id="${attr(author.id)}"` : ''} name="${attr(author.name)}">`,
+    `This message is from ${author.name}. More than one person writes in this conversation through Loom, taking turns, each on their own computer with their own copy of the project.`,
+    `</${AUTHOR_TAG}>`
+  ].join('\n')
+}
+
+/** Takes what Loom put in front of a message off it: who wrote it, the chats brought in. What is left is the person's words. */
+function takeLead(raw: string): { rest: string; context: ChatContext[]; author?: ChatAuthor } {
   const context: ChatContext[] = []
+  let author: ChatAuthor | undefined
   let rest = raw
-  for (let m = rest.match(CONTEXT_START); m; m = rest.match(CONTEXT_START)) {
+  for (;;) {
+    const a = rest.match(AUTHOR_START)
+    if (a) {
+      const id = a[1].match(/\sid="([^"]*)"/)?.[1]
+      const name = a[1].match(/\sname="([^"]*)"/)?.[1]
+      author = { name: name ? unattr(name) : 'A teammate', ...(id ? { id: unattr(id) } : {}) }
+      rest = rest.slice(a[0].length)
+      continue
+    }
+    const m = rest.match(CONTEXT_START)
+    if (!m) break
     const title = m[1].match(/\stitle="([^"]*)"/)?.[1]
     const from = m[1].match(/\sfrom="([^"]*)"/)?.[1]
     context.push({ title: title ? unattr(title) : 'Another chat', ...(from ? { from: unattr(from) } : {}) })
     rest = rest.slice(m[0].length)
   }
-  return { rest, context }
+  return { rest, context, author }
 }
 
 function stripTags(text: string): string {
@@ -279,7 +307,7 @@ export function userTextItem(
     const summary = tagValue(raw, 'summary') || 'A background task finished'
     return { kind: 'note', id, tone: 'info', text: firstLine(summary, 200) }
   }
-  const { rest, context } = takeContext(raw)
+  const { rest, context, author } = takeLead(raw)
   const background = BACKGROUND_END.test(rest)
   const clean = stripTags(background ? rest.replace(BACKGROUND_END, '') : rest)
   if (!clean && !images && !context.length) return null
@@ -292,7 +320,8 @@ export function userTextItem(
     previews: previews.length ? previews : undefined,
     ts,
     ...(background ? { background: true } : {}),
-    ...(context.length ? { context } : {})
+    ...(context.length ? { context } : {}),
+    ...(author ? { author } : {})
   }
 }
 

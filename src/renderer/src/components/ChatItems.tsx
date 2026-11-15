@@ -2,8 +2,9 @@ import { Check, ChevronRight, Copy, ImageIcon, MessagesSquare, SendToBack, Trian
 import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatItem, ImagePreview } from '@shared/types'
 import { formatDuration } from '../lib/paths'
-import { useStore } from '../store'
+import { teamRole, useStore } from '../store'
 import { Markdown } from './Markdown'
+import { MemberMark } from './TeamSettings'
 
 type ToolItem = Extract<ChatItem, { kind: 'tool' }>
 
@@ -304,6 +305,31 @@ function Note({ item }: { item: Extract<ChatItem, { kind: 'note' }> }): ReactNod
   )
 }
 
+/**
+ * Who a message is from, in a chat that members of a team take turns in: the name it was sent
+ * under, or the member who started the chat for the messages from before it first changed hands.
+ * Nothing in a chat that is only one's own.
+ */
+function MessageAuthor({ item }: { item: Extract<ChatItem, { kind: 'user' }> }): ReactNode {
+  const tabId = useContext(ChatTabContext)
+  const who = useStore((st) => {
+    const tab = tabId ? st.tabs.find((t) => t.id === tabId) : undefined
+    const role = tab?.kind === 'chat' ? teamRole(st.team, tab.sessionId) : null
+    // A copy taken of a team's chat: the others' messages still say whose they were.
+    if (!role) return item.author?.name ?? null
+    const id = item.author?.id ?? role.local.owner
+    if (id === role.team.me) return 'You'
+    return item.author?.name ?? role.team.members.find((m) => m.id === role.local.owner)?.name ?? 'A teammate'
+  })
+  if (!who) return null
+  return (
+    <span className="msg-author">
+      {who === 'You' ? null : <MemberMark name={who} />}
+      {who}
+    </span>
+  )
+}
+
 export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: ChatItem; cwd: string }): ReactNode {
   switch (item.kind) {
     case 'user': {
@@ -311,6 +337,7 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
       const rest = item.images - previews.length
       return (
         <div className="msg-user">
+          <MessageAuthor item={item} />
           {previews.length ? <Thumbs previews={previews} /> : null}
           {item.text || rest > 0 ? (
             <div className="bubble selectable">

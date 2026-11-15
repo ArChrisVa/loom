@@ -1428,6 +1428,8 @@ export const useStore = create<Store>((set, get) => {
         sentContext.set(id, context)
         if (sentContext.size > 40) sentContext.delete(sentContext.keys().next().value!)
       }
+      const role = teamRole(get().team, tab.sessionId)
+      const mine = role ? { id: role.team.me, name: get().team?.name.trim() || 'You' } : null
       // Claude is in the middle of a thought or of writing its reply: the message shows under it.
       const live = useLive.getState()
       const midStep = !!(live.thinking[tabId] || live.partial[tabId])
@@ -1443,7 +1445,9 @@ export const useStore = create<Store>((set, get) => {
             previews: previews.length ? previews : undefined,
             ts: new Date().toISOString(),
             ...(background ? { background: true } : {}),
-            ...(context.length ? { context: context.map((c) => ({ title: c.title, ...(c.from ? { from: c.from } : {}) })) } : {})
+            ...(context.length ? { context: context.map((c) => ({ title: c.title, ...(c.from ? { from: c.from } : {}) })) } : {}),
+            // In a chat a team takes turns in, each message says whose it is.
+            ...(mine ? { author: mine } : {})
           }
         ],
         draft: '',

@@ -36,9 +36,10 @@ import type {
   SessionSummary,
   SlashCommandInfo,
   ChatContextText,
-  ChatItem
+  ChatItem,
+  ChatAuthor
 } from '@shared/types'
-import { assistantItems, BACKGROUND_ASK, contextParts, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
+import { assistantItems, authorPart, BACKGROUND_ASK, contextParts, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
 import { LOOM_SERVER, loomTools, READ_ONLY_TOOLS } from './loomTools'
 import { skillOrigin } from './skillOrigin'
@@ -1022,12 +1023,14 @@ class ChatSession {
         return
       }
     }
+    const author = this.sessionId ? (authorOf?.(this.sessionId) ?? null) : null
     const content = [
       ...images.map((img) => ({
         type: 'image' as const,
         source: { type: 'base64' as const, media_type: img.mediaType as 'image/png', data: img.data }
       })),
-      // Each chat brought in is a part of its own, ahead of the person's words.
+      // Who wrote it (in a chat a team takes turns in) and each chat brought in are parts of their own, ahead of the person's words.
+      ...(author ? [{ type: 'text' as const, text: authorPart(author) }] : []),
       ...contextParts(context).map((part) => ({ type: 'text' as const, text: part })),
       ...(text ? [{ type: 'text' as const, text }] : [])
     ]
@@ -1040,7 +1043,7 @@ class ChatSession {
       const brought = context.map((c) => ({ title: c.title, ...(c.from ? { from: c.from } : {}) }))
       chatTap?.(this.sessionId, {
         type: 'items',
-        items: [{ kind: 'user', id: uuid, text: said, images: images.length, ts, ...(background ? { background: true } : {}), ...(brought.length ? { context: brought } : {}) }]
+        items: [{ kind: 'user', id: uuid, text: said, images: images.length, ts, ...(background ? { background: true } : {}), ...(brought.length ? { context: brought } : {}), ...(author ? { author } : {}) }]
       })
     }
     this.setStatus('running')
@@ -1158,6 +1161,12 @@ export function holdChat(tabId: string): void {
 /** Sends a chat's events to another window, when its tab moves there. */
 export function rebindChat(tabId: string, web: WebContents): void {
   chats.get(tabId)?.rebind(web)
+}
+
+/** Who a message in a chat is from, where a team takes turns in it; null in every other chat. Teams answer this. */
+let authorOf: ((sessionId: string) => ChatAuthor | null) | null = null
+export function setAuthorLookup(fn: (sessionId: string) => ChatAuthor | null): void {
+  authorOf = fn
 }
 
 /** Told of everything a chat with a history does, as it happens: a team following it listens here. */

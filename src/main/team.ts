@@ -56,8 +56,8 @@ import {
   type TeamSync,
   type Welcome
 } from '@shared/team'
-import type { ChatEvent, LoomSettings } from '@shared/types'
-import { briefChat, forgetSession, listAllSessions, modelOfSession, projectDirName, releaseSession, sessionState, tapChats, transcriptIndex } from './claude'
+import type { ChatAuthor, ChatEvent, LoomSettings } from '@shared/types'
+import { briefChat, forgetSession, listAllSessions, modelOfSession, projectDirName, releaseSession, sessionState, setAuthorLookup, tapChats, transcriptIndex } from './claude'
 import { gitStatus } from './files'
 
 interface Deps {
@@ -1165,6 +1165,14 @@ function typing(sessionId: string, text: string): void {
   else typingLater.set(sessionId, setTimeout(send, 400 - since))
 }
 
+/** Who a message sent from this PC is from, in a chat that has passed between members; null in any other chat. */
+function authorOf(sessionId: string): ChatAuthor | null {
+  const l = local[sessionId]
+  const link = l ? links.get(l.teamId) : undefined
+  if (!l || !link || l.writer !== link.cfg.me) return null
+  return { id: link.cfg.me, name: myName.trim() || nameOf(link, link.cfg.me) }
+}
+
 async function projectOf(link: Link, sessionId: string): Promise<string | null> {
   for (const project of link.cfg.projects) if ((await held(link, project))?.chats.some((c) => c.sessionId === sessionId)) return project
   return null
@@ -1301,6 +1309,7 @@ export function setupTeams(d: Deps): void {
   deps = d
   load()
   tapChats(onChatEvent)
+  setAuthorLookup(authorOf)
   for (const link of links.values()) connect(link)
   // What this PC holds changes as chats are started, renamed and closed: said again now and then.
   setInterval(() => {

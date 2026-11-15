@@ -368,6 +368,13 @@ export interface ImagePreview {
   ref?: string
 }
 
+/** Who wrote a message, in a chat that members of a team take turns in */
+export interface ChatAuthor {
+  /** Their id in the team, which tells them apart whatever they are called */
+  id?: string
+  name: string
+}
+
 /** Another chat brought into a message as background: which one, and whose it is when it is a teammate's. */
 export interface ChatContext {
   title: string
@@ -394,6 +401,7 @@ export type ChatItem =
   /**
    * `background`: sent with "Send to background", for Claude to hand to a background agent.
    * `context`: other chats whose summaries went to Claude with it.
+   * `author`: who wrote it, in a chat that has passed between the members of a team.
    */
   | {
       kind: 'user'
@@ -404,6 +412,7 @@ export type ChatItem =
       ts?: string
       background?: boolean
       context?: ChatContext[]
+      author?: ChatAuthor
     }
   | { kind: 'assistant'; id: string; text: string; ts?: string }
   /** ms: how long Claude thought, when known */

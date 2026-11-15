@@ -2731,3 +2731,21 @@
     animation: none;
   }
 }
+
+/* ---------- Whose a message is, in a chat a team takes turns in ---------- */
+/* Over a message, at the bubble's side: the member's mark and name, or You */
+.msg-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 560;
+  --mark-ground: var(--bg);
+}
+
+.msg-author .member-mark {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
