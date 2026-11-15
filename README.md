@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://loom.baby">
-    <img src="docs/banner.png" width="100%" alt="Loom. Claude Code, without the terminal. For vibe coding on Windows.">
+    <img src="docs/banner.png" width="100%" alt="Loom. Claude Code, without the terminal. Free, for vibe coding on Windows.">
   </a>
 </p>
 
