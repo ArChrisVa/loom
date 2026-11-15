@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Copy, ImageIcon, SendToBack, TriangleAlert } from 'lucide-react'
+import { Check, ChevronRight, Copy, ImageIcon, MessagesSquare, SendToBack, TriangleAlert } from 'lucide-react'
 import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatItem, ImagePreview } from '@shared/types'
 import { formatDuration } from '../lib/paths'
@@ -322,6 +322,11 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
               ) : null}
             </div>
           ) : null}
+          {item.context?.map((c, i) => (
+            <span key={i} className="bubble-tag" title="Claude got a summary of that chat with this message, as background">
+              <MessagesSquare /> With {c.from ? `${c.from}'s chat` : 'your chat'} <span className="bubble-tag-name">{c.title}</span>
+            </span>
+          ))}
           {item.background ? (
             <span className="bubble-tag" title="Sent with Send to background: Claude hands it to a background agent, and the chat stays free">
               <SendToBack /> Sent to the background

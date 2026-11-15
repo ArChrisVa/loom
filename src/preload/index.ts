@@ -38,7 +38,8 @@ import type {
   ServiceAccount,
   ServiceId,
   UpdateStatus,
-  UsageSnapshot
+  UsageSnapshot,
+  ChatContextText
 } from '@shared/types'
 import type { PhoneAction, RemoteList, RemoteStatus, ToPhone } from '@shared/remote'
 import type { TeamsState, TeamSync } from '@shared/team'
@@ -130,8 +131,8 @@ const api = {
   purgeTrash: (ids: string[] | 'all'): Promise<{ failed: number }> => ipcRenderer.invoke('trash:purge', ids),
 
   chatOpen: (tabId: string, opts: ChatStartOptions): Promise<void> => ipcRenderer.invoke('chat:open', tabId, opts),
-  chatSend: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean): Promise<void> =>
-    ipcRenderer.invoke('chat:send', tabId, text, images, id, background),
+  chatSend: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean, context?: ChatContextText[]): Promise<void> =>
+    ipcRenderer.invoke('chat:send', tabId, text, images, id, background, context),
   /** Moves the running command or agent started by that tool call to the background */
   chatBackground: (tabId: string, toolUseId: string): Promise<{ ok: boolean; message?: string }> => ipcRenderer.invoke('chat:background', tabId, toolUseId),
   chatInterrupt: (tabId: string): Promise<void> => ipcRenderer.invoke('chat:interrupt', tabId),
@@ -318,6 +319,8 @@ const api = {
   /** Asks whoever writes in a chat to pass it on: this PC writes in it from then on */
   teamTake: (sessionId: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('team:take', sessionId),
   teamFork: (sessionId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> => ipcRenderer.invoke('team:fork', sessionId),
+  /** Notes on a chat (a teammate's is copied here first), for another chat to take in as background */
+  teamBrief: (sessionId: string): Promise<{ ok: boolean; text?: string; error?: string }> => ipcRenderer.invoke('team:brief', sessionId),
   onTeamState: (cb: (state: TeamsState) => void): (() => void) => {
     const listener = (_e: unknown, state: TeamsState): void => cb(state)
     ipcRenderer.on('team:state', listener)

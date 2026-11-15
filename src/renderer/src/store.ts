@@ -3,6 +3,8 @@ import {
   THREAD_COLORS,
   isStarterModels,
   type BrowserTab,
+  type ChatBrief,
+  type ChatContextText,
   type ChatEvent,
   type ChatItem,
   type ChatStatus,
@@ -88,6 +90,8 @@ export interface ChatRuntime {
   tasks: AgentTask[]
   /** Images waiting in the message box */
   attachments: ImageAttachment[]
+  /** Other chats waiting in the message box, to go with the next message as background */
+  briefs: ChatBrief[]
   /** Being moved to another project: no messages until it's done */
   moving?: boolean
   /** What Claude Code is doing besides answering, such as compacting the conversation */
@@ -199,6 +203,8 @@ export function chatWorking(c: ChatRuntime | undefined): boolean {
 
 export interface MenuItem {
   label: string
+  /** A line that names the items under it, and cannot be picked */
+  heading?: boolean
   onSelect?: () => void
   danger?: boolean
   disabled?: boolean
@@ -211,6 +217,8 @@ export interface MenuState {
   x: number
   y: number
   items: MenuItem[]
+  /** Opens upwards from the point, for a button at the bottom of the window */
+  above?: boolean
 }
 
 type PersistedKeys = keyof PersistedState
@@ -365,7 +373,11 @@ interface Store extends PersistedState {
   loadHistory: (tabId: string) => Promise<void>
   /** id: the message's own, when whoever sent it (a linked phone) already made one */
   /** `background`: "Send to background", Claude hands the job to a background agent and stays free */
-  send: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean) => Promise<void>
+  /** `context`: other chats brought in as background, their summaries sent along */
+  send: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean, context?: ChatContextText[]) => Promise<void>
+  /** Puts another chat in the message box, and has its summary written for Claude to get with the next message */
+  bringIn: (tabId: string, chat: { sessionId: string; title: string; from?: string }) => Promise<void>
+  dropBrief: (tabId: string, sessionId: string) => void
   interrupt: (tabId: string) => void
   setModel: (tabId: string, model: string | null) => void
   setMode: (tabId: string, mode: PermissionMode) => void
@@ -419,7 +431,7 @@ interface Store extends PersistedState {
   refreshChanges: (projectId: string) => Promise<void>
   /** A file's changes in a tab: uncommitted ones, or the ones made in a commit. */
   openDiff: (projectId: string | null, path: string, commit?: string, commitLabel?: string) => void
-  showMenu: (e: { clientX: number; clientY: number }, items: MenuItem[]) => void
+  showMenu: (e: { clientX: number; clientY: number }, items: MenuItem[], above?: boolean) => void
   /** Asks a question in Loom's own dialog; resolves with the id of the choice picked. */
   ask: (req: ConfirmRequest) => Promise<string>
   /** `action`: one thing to do about it, such as Undo */
@@ -462,6 +474,12 @@ export function teamRole(
   return { local: l, team: t, mine: l.writer === t.me, writerName: writer?.name ?? 'A teammate', online: !!writer?.online }
 }
 
+/** How many other chats one message can bring along */
+export const MAX_BRIEFS = 4
+
+/** The chats the last few messages brought along, by message: Stop gives them back with a message it takes back. */
+const sentContext = new Map<string, ChatContextText[]>()
+
 /** When each followed chat last heard from its writer as it happened */
 const teamLiveAt = new Map<string, number>()
 const teamReloads = new Map<string, ReturnType<typeof setTimeout>>()
@@ -479,6 +497,7 @@ export function newChatRuntime(): ChatRuntime {
     permissions: [],
     tasks: [],
     attachments: [],
+    briefs: [],
     historyState: 'none',
     historyTotal: 0,
     permissionMode: null,
@@ -1303,7 +1322,27 @@ export const useStore = create<Store>((set, get) => {
       }))
     },
 
-    send: async (tabId, text, images, givenId, background = false) => {
+    bringIn: async (tabId, chat) => {
+      const cur = get().chat(tabId).briefs
+      if (cur.some((b) => b.sessionId === chat.sessionId)) return
+      if (cur.length >= MAX_BRIEFS) return get().showToast(`A message takes up to ${MAX_BRIEFS} other chats.`)
+      patchChat(tabId, (c) => ({ briefs: [...c.briefs, { ...chat, state: 'writing' }] }))
+      const r = await window.loom.teamBrief(chat.sessionId).catch((e) => ({ ok: false, text: undefined, error: (e as Error).message }))
+      // Taken out of the message box meanwhile: there is nothing left to fill in.
+      patchChat(tabId, (c) => ({
+        briefs: c.briefs.map((b) =>
+          b.sessionId !== chat.sessionId
+            ? b
+            : r.ok && r.text
+              ? { ...b, state: 'ready', text: r.text }
+              : { ...b, state: 'failed', error: r.error ?? 'The summary could not be written.' }
+        )
+      }))
+      // A teammate's chat was copied here for it: the sidebar lists the copy.
+      if (chat.from) void get().refreshSessions(true)
+    },
+    dropBrief: (tabId, sessionId) => patchChat(tabId, (c) => ({ briefs: c.briefs.filter((b) => b.sessionId !== sessionId) })),
+    send: async (tabId, text, images, givenId, background = false, context = []) => {
       const tab = get().tabs.find((t) => t.id === tabId)
       if (!tab || tab.kind !== 'chat') return
       const trimmed = text.trim()
@@ -1335,6 +1374,10 @@ export const useStore = create<Store>((set, get) => {
       )
       // A real UUID: Claude Code tags the message with it, and Stop names the ones it takes back by it.
       const id = givenId ?? crypto.randomUUID()
+      if (context.length) {
+        sentContext.set(id, context)
+        if (sentContext.size > 40) sentContext.delete(sentContext.keys().next().value!)
+      }
       // Claude is in the middle of a thought or of writing its reply: the message shows under it.
       const live = useLive.getState()
       const midStep = !!(live.thinking[tabId] || live.partial[tabId])
@@ -1349,7 +1392,8 @@ export const useStore = create<Store>((set, get) => {
             images: images.length,
             previews: previews.length ? previews : undefined,
             ts: new Date().toISOString(),
-            ...(background ? { background: true } : {})
+            ...(background ? { background: true } : {}),
+            ...(context.length ? { context: context.map((c) => ({ title: c.title, ...(c.from ? { from: c.from } : {}) })) } : {})
           }
         ],
         draft: '',
@@ -1360,7 +1404,7 @@ export const useStore = create<Store>((set, get) => {
       }))
       try {
         await ensureOpened(tab)
-        await window.loom.chatSend(tabId, trimmed, images, id, background)
+        await window.loom.chatSend(tabId, trimmed, images, id, background, context)
       } catch (e) {
         patchChat(tabId, () => ({ status: 'error', error: (e as Error).message }))
       }
@@ -1784,9 +1828,15 @@ export const useStore = create<Store>((set, get) => {
               return m ? [{ mediaType: m[1], data: m[2], name: 'image' }] : []
             })
           )
+          // The chats those messages brought along wait in the box again, their notes already written.
+          const brought: ChatBrief[] = back.flatMap((it) =>
+            (sentContext.get(it.id) ?? []).map((c) => ({ sessionId: c.sessionId ?? `${it.id}:${c.title}`, title: c.title, ...(c.from ? { from: c.from } : {}), state: 'ready' as const, text: c.text }))
+          )
+          for (const it of back) sentContext.delete(it.id)
           patchChat(tabId, (c) => ({
             items: c.items.filter((it) => !(it.kind === 'user' && gone.has(it.id))),
             attachments: [...images, ...c.attachments].slice(0, 8),
+            briefs: [...brought, ...c.briefs].filter((b, i, all) => all.findIndex((x) => x.sessionId === b.sessionId) === i).slice(0, MAX_BRIEFS),
             refill: { text: back.map((it) => it.text).filter(Boolean).join('\n\n'), key: Date.now() }
           }))
           break
@@ -1930,7 +1980,7 @@ export const useStore = create<Store>((set, get) => {
       const status = await window.loom.gitStatus(p.path)
       set((s) => ({ git: { ...s.git, [projectId]: status } }))
     },
-    showMenu: (e, items) => set({ menu: { x: e.clientX, y: e.clientY, items } }),
+    showMenu: (e, items, above) => set({ menu: { x: e.clientX, y: e.clientY, items, above } }),
     ask: (req) =>
       new Promise<string>((resolve) => {
         // One question at a time: an older one still open counts as cancelled.

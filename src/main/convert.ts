@@ -1,7 +1,7 @@
 // Turns Claude Code transcript and SDK messages into the small, display-ready items the UI renders.
 // Attached images stay in the main process (images.ts); the renderer gets thumbnails and a reference.
 
-import type { ChatItem, ImagePreview } from '@shared/types'
+import type { ChatContext, ChatContextText, ChatItem, ImagePreview } from '@shared/types'
 import { keepImage } from './images'
 
 const MAX_RESULT = 8000
@@ -167,6 +167,53 @@ export const BACKGROUND_ASK = [
 ].join('\n')
 const BACKGROUND_END = new RegExp(`\\s*<${BACKGROUND_TAG}>[\\s\\S]*?</${BACKGROUND_TAG}>\\s*$`)
 
+/**
+ * Another chat brought into a message as background goes in front of the person's words, each in
+ * its own tag with the chat's name, and each as a part of its own: Claude Code names and lists a
+ * chat by the first part of its first message that does not open with a tag, so the person's
+ * words must not share a part with the notes. The chat (and the history read back) shows only the
+ * person's words, with the names of the chats that came along.
+ */
+const CONTEXT_TAG = 'loom-context'
+const CONTEXT_START = new RegExp(`^\\s*<${CONTEXT_TAG}((?:\\s+[a-z]+="[^"]*")*)\\s*>[\\s\\S]*?</${CONTEXT_TAG}>\\s*`)
+
+const attr = (text: string): string => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\s+/g, ' ').trim()
+const unattr = (text: string): string => text.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
+/** The chats brought in, as Claude gets them: a part for each, ahead of what the person wrote. */
+export function contextParts(context: ChatContextText[]): string[] {
+  return context
+    .filter((c) => c.text.trim())
+    .map((c) =>
+      [
+        `<${CONTEXT_TAG} title="${attr(c.title)}"${c.from ? ` from="${attr(c.from)}"` : ''}>`,
+        c.from
+          ? `The person brought this in from Loom as background for their message below: notes on another conversation about this project, named "${c.title}", which ${c.from} had with Claude on their own computer.`
+          : `The person brought this in from Loom as background for their message below: notes on another conversation of theirs with Claude about this project, named "${c.title}".`,
+        c.from
+          ? `You were not part of that conversation, and what was changed in it was changed in ${c.from}'s copy of the project: check the files here as they are now before relying on the notes.`
+          : 'You were not part of that conversation: where the notes say files were changed, check them as they are now before relying on that.',
+        '',
+        // The summary cannot close its own tag.
+        c.text.trim().split(`</${CONTEXT_TAG}>`).join(''),
+        `</${CONTEXT_TAG}>`
+      ].join('\n')
+    )
+}
+
+/** Takes the chats brought in off the front of a message: what is left, and their names. */
+function takeContext(raw: string): { rest: string; context: ChatContext[] } {
+  const context: ChatContext[] = []
+  let rest = raw
+  for (let m = rest.match(CONTEXT_START); m; m = rest.match(CONTEXT_START)) {
+    const title = m[1].match(/\stitle="([^"]*)"/)?.[1]
+    const from = m[1].match(/\sfrom="([^"]*)"/)?.[1]
+    context.push({ title: title ? unattr(title) : 'Another chat', ...(from ? { from: unattr(from) } : {}) })
+    rest = rest.slice(m[0].length)
+  }
+  return { rest, context }
+}
+
 function stripTags(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
@@ -232,11 +279,21 @@ export function userTextItem(
     const summary = tagValue(raw, 'summary') || 'A background task finished'
     return { kind: 'note', id, tone: 'info', text: firstLine(summary, 200) }
   }
-  const background = BACKGROUND_END.test(raw)
-  const clean = stripTags(background ? raw.replace(BACKGROUND_END, '') : raw)
-  if (!clean && !images) return null
+  const { rest, context } = takeContext(raw)
+  const background = BACKGROUND_END.test(rest)
+  const clean = stripTags(background ? rest.replace(BACKGROUND_END, '') : rest)
+  if (!clean && !images && !context.length) return null
   if (synthetic) return { kind: 'note', id, tone: 'info', text: firstLine(clean, 200), detail: truncate(clean, MAX_RESULT) }
-  return { kind: 'user', id, text: clean, images, previews: previews.length ? previews : undefined, ts, ...(background ? { background: true } : {}) }
+  return {
+    kind: 'user',
+    id,
+    text: clean,
+    images,
+    previews: previews.length ? previews : undefined,
+    ts,
+    ...(background ? { background: true } : {}),
+    ...(context.length ? { context } : {})
+  }
 }
 
 export interface ToolResultUpdate {

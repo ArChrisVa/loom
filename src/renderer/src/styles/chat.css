@@ -2559,3 +2559,106 @@
     flex-basis: calc(100% - 40px);
   }
 }
+
+/* ---------- Other chats brought into a message ---------- */
+/* Waiting in the message box: a chip per chat, lavender once its summary is ready */
+.briefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0 8px;
+}
+
+.brief {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  border-radius: 9px;
+  background: rgba(196, 194, 252, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.24);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.brief > svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--light);
+}
+
+.brief.is-writing {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-2);
+}
+
+.brief.is-writing > svg {
+  color: var(--text-3);
+}
+
+.brief.is-failed {
+  background: rgba(240, 195, 138, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(240, 195, 138, 0.28);
+}
+
+.brief.is-failed > svg {
+  color: var(--warn);
+}
+
+.brief-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 34ch;
+}
+
+.brief-state {
+  flex: none;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.brief-remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
+}
+
+.brief-remove:hover,
+.brief-remove:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.brief-remove svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* The button that opens the list, lit while a chat is waiting to go along */
+.composer-opts > .icon-btn.is-on {
+  color: var(--light);
+}
+
+/* Under a sent message: the name of the chat that went along */
+.bubble-tag-name {
+  max-width: 40ch;
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

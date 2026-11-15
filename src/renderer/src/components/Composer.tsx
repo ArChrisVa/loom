@@ -1,8 +1,9 @@
-import { ArrowUp, Cpu, Gauge, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
+import { ArrowUp, Cpu, Gauge, LoaderCircle, MessagesSquare, Paperclip, SendToBack, ShieldCheck, Square, TriangleAlert, X } from 'lucide-react'
 import { isShortcut, useKeys } from '../lib/keys'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
-import { EMPTY_CHAT, useStore } from '../store'
+import { EMPTY_CHAT, MAX_BRIEFS, sessionsForProject, teamRole, useStore, type MenuItem } from '../store'
+import { normPath } from '../lib/paths'
 import { Dropdown } from './Menu'
 
 export const MODE_OPTIONS: { value: PermissionMode; label: string; description: string }[] = [
@@ -169,6 +170,9 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const [text, setText] = useState(chat.draft || tab.draft || '')
   const images = chat.attachments
   const setImages = (fn: (cur: ImageAttachment[]) => ImageAttachment[]): void => useStore.getState().setAttachments(tab.id, fn(useStore.getState().chat(tab.id).attachments))
+  // Other chats to go along as background: each waits here while its summary is written.
+  const briefs = chat.briefs
+  const writing = briefs.find((b) => b.state === 'writing')
   const [cmdIndex, setCmdIndex] = useState(0)
   // Esc or a click elsewhere puts the / list away until the text changes.
   const [cmdDismissed, setCmdDismissed] = useState(false)
@@ -291,11 +295,59 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
       setText('')
       return
     }
-    if ((!text.trim() && !images.length) || chat.moving) return
+    if ((!text.trim() && !images.length) || chat.moving || writing) return
     if (background && !text.trim()) return
-    void s.send(tab.id, text, images, undefined, background)
+    const context = briefs.flatMap((b) => (b.state === 'ready' && b.text ? [{ sessionId: b.sessionId, title: b.title, text: b.text, ...(b.from ? { from: b.from } : {}) }] : []))
+    void s.send(tab.id, text, images, undefined, background, context)
     setText('')
     s.setAttachments(tab.id, [])
+    for (const b of briefs) s.dropBrief(tab.id, b.sessionId)
+  }
+
+  /** The chats that can come along: teammates' chats in this project first, then this PC's other ones. */
+  const pickChat = (e: React.MouseEvent<HTMLButtonElement>): void => {
+    const st = useStore.getState()
+    const have = new Set(st.chat(tab.id).briefs.map((b) => b.sessionId))
+    const short = (title: string): string => (title.length > 64 ? `${title.slice(0, 63)}…` : title)
+    const item = (c: { sessionId: string; title: string; from?: string }): MenuItem => ({
+      label: c.from ? `${c.from}: ${short(c.title)}` : short(c.title),
+      checked: have.has(c.sessionId),
+      onSelect: () => (have.has(c.sessionId) ? st.dropBrief(tab.id, c.sessionId) : void st.bringIn(tab.id, c))
+    })
+    const key = tab.projectId ? st.teamKeys[tab.projectId] : null
+    const theirs = key
+      ? (st.team?.chats ?? [])
+          .filter((c) => c.project === key && c.sessionId !== tab.sessionId)
+          .sort((a, b) => b.lastAt - a.lastAt)
+          .slice(0, 12)
+      : []
+    const listed = new Set(theirs.map((c) => c.sessionId))
+    // The name a chat goes by where it is open, which may be newer than the saved one.
+    const titleOf = (id: string, saved: string): string => st.tabs.find((t) => t.kind === 'chat' && t.sessionId === id)?.title ?? saved
+    // A chat outside every project goes by its folder.
+    const here = tab.projectId ? sessionsForProject(st.sessions, st.projects, tab.projectId) : st.sessions.filter((x) => normPath(x.cwd) === normPath(tab.cwd))
+    const mine = here
+      .filter((x) => x.sessionId !== tab.sessionId && !listed.has(x.sessionId))
+      .sort((a, b) => b.lastModified - a.lastModified)
+      .slice(0, 14)
+    const items: MenuItem[] = []
+    if (theirs.length) {
+      items.push({ label: 'From the team', heading: true })
+      items.push(...theirs.map((c) => item({ sessionId: c.sessionId, title: c.title, from: c.writerName })))
+    }
+    if (mine.length) {
+      items.push({ label: theirs.length ? 'On this PC' : 'Chats in this project', heading: true })
+      items.push(
+        ...mine.map((x) => {
+          // A copy of a teammate's chat that is here: still theirs, by name.
+          const role = teamRole(st.team, x.sessionId)
+          return item({ sessionId: x.sessionId, title: titleOf(x.sessionId, x.title), ...(role && !role.mine ? { from: role.writerName } : {}) })
+        })
+      )
+    }
+    if (!items.length) items.push({ label: 'No other chats in this project yet', disabled: true })
+    const r = e.currentTarget.getBoundingClientRect()
+    st.showMenu({ clientX: r.left, clientY: r.top - 6 }, items, true)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -393,6 +445,30 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
           ))}
         </div>
       ) : null}
+      {briefs.length ? (
+        <div className="briefs">
+          {briefs.map((b) => (
+            <span
+              key={b.sessionId}
+              className={`brief is-${b.state}`}
+              title={
+                b.state === 'writing'
+                  ? 'Claude is writing a summary of this chat. It goes with your next message.'
+                  : b.state === 'failed'
+                    ? b.error
+                    : 'A summary of this chat goes to Claude with your next message, as background.'
+              }
+            >
+              {b.state === 'writing' ? <LoaderCircle className="spin" /> : b.state === 'failed' ? <TriangleAlert /> : <MessagesSquare />}
+              <span className="brief-name">{b.from ? `${b.from}: ${b.title}` : b.title}</span>
+              {b.state === 'writing' ? <span className="brief-state">Summarising</span> : b.state === 'failed' ? <span className="brief-state">No summary</span> : null}
+              <button className="brief-remove" title="Leave this chat out" aria-label={`Leave out ${b.title}`} onClick={() => s.dropBrief(tab.id, b.sessionId)}>
+                <X />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
       <textarea
         ref={ta}
         className="composer-input selectable"
@@ -429,6 +505,15 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
           />
           <button className="icon-btn" title="Attach images" onClick={() => fileInput.current?.click()}>
             <Paperclip />
+          </button>
+          <button
+            className={`icon-btn${briefs.length ? ' is-on' : ''}`}
+            title={`Bring in another chat: Claude gets a summary of it with your next message, as background (up to ${MAX_BRIEFS})`}
+            aria-label="Bring in another chat"
+            aria-haspopup="menu"
+            onClick={pickChat}
+          >
+            <MessagesSquare />
           </button>
           <Dropdown
             className="composer-pick"
@@ -497,16 +582,16 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
             className="send to-back"
             title={`Send to background (${backgroundKeys}): Claude hands it to a background agent, and you keep chatting while it works`}
             aria-label="Send to background"
-            disabled={!text.trim() || chat.moving || isUsageCommand(text)}
+            disabled={!text.trim() || chat.moving || !!writing || isUsageCommand(text)}
             onClick={() => submit(true)}
           >
             <SendToBack />
           </button>
           <button
             className="send"
-            title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
+            title={writing ? `Waiting for the summary of ${writing.title}. Take it out to send without it.` : settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
             aria-label="Send"
-            disabled={(!text.trim() && !images.length) || chat.moving}
+            disabled={(!text.trim() && !images.length) || chat.moving || !!writing}
             onClick={() => submit()}
           >
             <ArrowUp />

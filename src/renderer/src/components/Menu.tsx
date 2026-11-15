@@ -10,13 +10,16 @@ function MenuList({
   onClose,
   minWidth = 180,
   takeFocus = true,
-  onBack
+  onBack,
+  above = false
 }: {
   items: MenuItem[]
   x: number
   y: number
   onClose: () => void
   minWidth?: number
+  /** `y` is where the menu ends: it opens upwards, for a button at the bottom of the window */
+  above?: boolean
   /** A submenu opened by hovering leaves the keyboard where it was; one opened by key takes it. */
   takeFocus?: boolean
   /** ArrowLeft in a submenu goes back to the menu it came from. */
@@ -32,13 +35,13 @@ function MenuList({
     if (!el) return
     const r = el.getBoundingClientRect()
     const nx = Math.min(x, window.innerWidth - r.width - 6)
-    const ny = Math.min(y, window.innerHeight - r.height - 6)
+    const ny = above ? y - r.height : Math.min(y, window.innerHeight - r.height - 6)
     setPos({ x: Math.max(6, nx), y: Math.max(6, ny) })
     if (takeFocus) el.focus()
   }, [x, y])
 
   // A submenu with nothing in it (Move to project with one project, say) can't be picked.
-  const usable = (it: MenuItem): boolean => !it.separator && !it.disabled && !(it.submenu && !it.submenu.length)
+  const usable = (it: MenuItem): boolean => !it.separator && !it.heading && !it.disabled && !(it.submenu && !it.submenu.length)
   const actionable = items.map((it, i) => (usable(it) ? i : -1)).filter((i) => i >= 0)
   // A submenu opened by key starts on its first item.
   useEffect(() => {
@@ -46,7 +49,7 @@ function MenuList({
   }, [])
 
   const openSub = (i: number, byKey: boolean): void => {
-    const el = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[items.slice(0, i).filter((it) => !it.separator).length]
+    const el = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[items.slice(0, i).filter((it) => !it.separator && !it.heading).length]
     const r = el?.getBoundingClientRect()
     if (r) setSub({ index: i, x: r.right + 2, y: r.top - 4, byKey })
   }
@@ -93,6 +96,10 @@ function MenuList({
       {items.map((it, i) =>
         it.separator ? (
           <div key={i} className="menu-sep" role="separator" />
+        ) : it.heading ? (
+          <div key={i} className="menu-head" role="presentation">
+            {it.label}
+          </div>
         ) : (
           <button
             key={i}
@@ -171,7 +178,7 @@ export function ContextMenuHost(): ReactNode {
     }
   }, [menu])
   if (!menu) return null
-  return createPortal(<MenuList items={menu.items} x={menu.x} y={menu.y} onClose={close} />, document.body)
+  return createPortal(<MenuList items={menu.items} x={menu.x} y={menu.y} above={menu.above} onClose={close} />, document.body)
 }
 
 /** A dropdown that looks like a field and opens a themed list. */

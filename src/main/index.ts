@@ -14,7 +14,8 @@ import type {
   PermissionResponse,
   PersistedState,
   RunTarget,
-  ServiceId
+  ServiceId,
+  ChatContextText
 } from '@shared/types'
 import {
   claudeAuthStatus,
@@ -554,9 +555,14 @@ function registerIpc(): void {
       setTimeout(() => usageNow(true), 1500)
     })
   })
-  ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean) =>
-    getChat(tabId)?.send(text, images, id, background === true)
-  )
+  ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean, context?: ChatContextText[]) => {
+    // Other chats brought in as background: a few at most, each a name and its summary.
+    const brought = (Array.isArray(context) ? context : [])
+      .filter((c) => c && typeof c.title === 'string' && typeof c.text === 'string' && c.text.trim())
+      .slice(0, 4)
+      .map((c) => ({ title: c.title.slice(0, 200), text: c.text.slice(0, 20_000), ...(typeof c.from === 'string' && c.from ? { from: c.from.slice(0, 80) } : {}) }))
+    return getChat(tabId)?.send(text, images, id, background === true, brought)
+  })
   ipcMain.handle('chat:background', (_e, tabId: string, toolUseId: string) => getChat(tabId)?.background(toolUseId) ?? { ok: false, message: 'This chat is not running.' })
   ipcMain.handle('chat:interrupt', (_e, tabId: string) => getChat(tabId)?.interrupt())
   ipcMain.handle('chat:stopTask', (_e, tabId: string, taskId: string) => getChat(tabId)?.stopTask(taskId))
@@ -703,7 +709,7 @@ app.whenReady().then(() => {
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
   setupRemote({ main: () => win })
-  setupTeams({ projects: () => state.projects.map((p) => ({ id: p.id, name: p.name, path: p.path })) })
+  setupTeams({ projects: () => state.projects.map((p) => ({ id: p.id, name: p.name, path: p.path })), settings })
   setupAccounts({ projects: () => state.projects.map((p) => p.path) })
   setupUpdates({ confirm: () => confirmLoss('Restarting', 'Restart now', 'Later') })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With

@@ -363,10 +363,43 @@ export interface ImagePreview {
   ref?: string
 }
 
+/** Another chat brought into a message as background: which one, and whose it is when it is a teammate's. */
+export interface ChatContext {
+  title: string
+  from?: string
+}
+
+/** What goes to Claude with the message: the chat's summary, under its name. */
+export interface ChatContextText extends ChatContext {
+  text: string
+  /** Which chat it is, for the window that sent it: a message Stop takes back brings its chats back with it */
+  sessionId?: string
+}
+
+/** A chat waiting in the message box to go with the next message, while and after its summary is written. */
+export interface ChatBrief extends ChatContext {
+  sessionId: string
+  state: 'writing' | 'ready' | 'failed'
+  text?: string
+  error?: string
+}
+
 /** Every item may carry `ts`, when it happened (ISO): saved ones have it, live ones get it as they arrive. */
 export type ChatItem =
-  /** `background`: sent with "Send to background", for Claude to hand to a background agent */
-  | { kind: 'user'; id: string; text: string; images: number; previews?: ImagePreview[]; ts?: string; background?: boolean }
+  /**
+   * `background`: sent with "Send to background", for Claude to hand to a background agent.
+   * `context`: other chats whose summaries went to Claude with it.
+   */
+  | {
+      kind: 'user'
+      id: string
+      text: string
+      images: number
+      previews?: ImagePreview[]
+      ts?: string
+      background?: boolean
+      context?: ChatContext[]
+    }
   | { kind: 'assistant'; id: string; text: string; ts?: string }
   /** ms: how long Claude thought, when known */
   | { kind: 'thinking'; id: string; text: string; ms?: number; ts?: string }

@@ -55,12 +55,13 @@ import {
   type TeamSync,
   type Welcome
 } from '@shared/team'
-import type { ChatEvent } from '@shared/types'
-import { forgetSession, listAllSessions, modelOfSession, projectDirName, releaseSession, sessionState, tapChats, transcriptIndex } from './claude'
+import type { ChatEvent, LoomSettings } from '@shared/types'
+import { briefChat, forgetSession, listAllSessions, modelOfSession, projectDirName, releaseSession, sessionState, tapChats, transcriptIndex } from './claude'
 import { gitStatus } from './files'
 
 interface Deps {
   projects: () => { id: string; name: string; path: string }[]
+  settings: () => LoomSettings
 }
 
 interface TeamCfg {
@@ -136,7 +137,7 @@ const chatsFile = (): string => join(app.getPath('userData'), 'team-chats.json')
 const PROJECTS = join(homedir(), '.claude', 'projects')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-let deps: Deps = { projects: () => [] }
+let deps: Deps = { projects: () => [], settings: () => ({}) as LoomSettings }
 let myName = ''
 let closing = false
 const links = new Map<string, Link>()
@@ -1202,6 +1203,31 @@ async function fork(sessionId: string): Promise<Result & { sessionId?: string }>
   return { ok: true, sessionId: id }
 }
 
+/**
+ * Notes on a chat, for another chat to take in as background. A teammate's chat is copied to this
+ * PC first (or brought up to date), as when it is opened; nobody's chat changes hands for it.
+ */
+async function brief(sessionId: string): Promise<Result & { text?: string }> {
+  if (!UUID.test(sessionId)) return { ok: false, error: 'That chat could not be found.' }
+  const theirs = entries().some((e) => e.sessionId === sessionId)
+  const known = local[sessionId]
+  const mine = known ? links.get(known.teamId)?.cfg.me === known.writer : !theirs
+  if (!mine) {
+    const was = following.has(sessionId)
+    const r = await open(sessionId)
+    // Only the history was wanted: it is not followed from here on, unless a tab already does.
+    if (!was) unfollow(sessionId)
+    // What this PC already has of it can still be read when the newest of it cannot be fetched.
+    if (!r.ok && !(await transcriptIndex()).has(sessionId)) return { ok: false, error: r.error }
+    // Notes on half a chat would pass for notes on all of it.
+    if (r.partial) {
+      return { ok: false, error: r.partial.left ? `${r.partial.who} went offline before the whole chat arrived. Try again when they are back.` : 'Only part of the chat has arrived so far. Try again in a moment.' }
+    }
+  }
+  const r = await briefChat(sessionId, deps.settings())
+  return r.ok ? { ok: true, text: r.text } : { ok: false, error: r.error }
+}
+
 export function setupTeams(d: Deps): void {
   deps = d
   load()
@@ -1295,6 +1321,7 @@ export function setupTeams(d: Deps): void {
   ipcMain.handle('team:unfollow', (_e, sessionId: string) => unfollow(sessionId))
   ipcMain.handle('team:take', (_e, sessionId: string) => take(sessionId))
   ipcMain.handle('team:fork', (_e, sessionId: string) => fork(sessionId))
+  ipcMain.handle('team:brief', (_e, sessionId: string) => brief(sessionId))
 }
 
 export function closeTeams(): void {
