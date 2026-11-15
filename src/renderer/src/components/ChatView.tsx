@@ -14,6 +14,10 @@ import { RunControl } from './Servers'
 const PAGE = 200
 /** The pinned band's height: a message of yours ending above this line is out of view, under the band. */
 const PIN_COVER = 42
+/** Within this of the conversation's end, the view counts as at the end: about two lines. */
+const AT_END = 48
+/** How long a push down with the wheel or a key goes on scrolling (the browser eases it), in ms. */
+const PUSH_LASTS = 800
 
 const CLOCK = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
 const DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -150,9 +154,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const [focusKey, setFocusKey] = useState(0)
   /** The scroll height before "Show earlier messages", to keep your place after they're added above. */
   const grownFrom = useRef<number | null>(null)
-  /** The content's height at the last change, and when it last got shorter while you were scrolled up */
-  const lastHeight = useRef(0)
-  const shrankAt = useRef(0)
+  /** When you last pushed the view down yourself: with the wheel, the keys, or by dragging (`dragging`) */
+  const pushedDown = useRef(0)
+  const dragging = useRef(false)
   const root = useRef<HTMLDivElement>(null)
   const [dragFiles, setDragFiles] = useState(false)
   const [pinned, setPinned] = useState<Pinned | null>(null)
@@ -198,6 +202,15 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
           useStore.getState().interrupt(tab.id)
         }
         return
+      }
+      // The keys that scroll the conversation say which way you are taking it.
+      if (['PageUp', 'ArrowUp', 'Home'].includes(e.key)) {
+        stick.current = false
+        pushedDown.current = 0
+      } else if (['PageDown', 'ArrowDown', 'End', ' '].includes(e.key)) {
+        pushedDown.current = Date.now()
+        const sc = scroller.current
+        if (sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight < AT_END) stick.current = true
       }
       // A character (AltGr ones too), not a shortcut. Space keeps scrolling the conversation.
       const typed = e.key.length === 1 && e.key !== ' ' && ((!e.ctrlKey && !e.metaKey && !e.altKey) || e.getModifierState('AltGraph'))
@@ -276,10 +289,6 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   useLayoutEffect(() => {
     const el = scroller.current
     if (!el) return
-    // A finished reply replaces the one being written, and for a moment the chat is shorter: the
-    // browser then pulls the view to the bottom on its own. That isn't you scrolling down.
-    if (!stick.current && el.scrollHeight < lastHeight.current) shrankAt.current = Date.now()
-    lastHeight.current = el.scrollHeight
     if (grownFrom.current !== null) {
       // Earlier messages went in above: stay on what you were reading.
       el.scrollTop += el.scrollHeight - grownFrom.current
@@ -295,15 +304,50 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   }, [chat.items, shown, limit, partial])
 
   // Scrolling up lets go of the bottom at once, before the next words pull the view back down.
+  // It also ends a push down made a moment before: the first steps up are still near the end.
   const letGo = (): void => {
     stick.current = false
+    pushedDown.current = 0
+  }
+  /** How far the view is from the end of the conversation */
+  const below = (): number => {
+    const el = scroller.current
+    return el ? el.scrollHeight - el.scrollTop - el.clientHeight : 0
+  }
+  /**
+   * You pushed the view down: with the wheel, a key, or the scrollbar. Reaching the end that way
+   * follows new output again. Already at the end, a push scrolls nothing and so no scroll is
+   * heard: it counts all the same.
+   */
+  const pushDown = (): void => {
+    pushedDown.current = Date.now()
+    if (below() < AT_END) stick.current = true
+  }
+  /** A press in the conversation that may drag it: the scrollbar, or a selection pulled past the edge. */
+  const startDrag = (): void => {
+    dragging.current = true
+    const end = (e: PointerEvent): void => {
+      // The release of a scrollbar is not always reported: a move with no button down says the same.
+      if (e.type === 'pointermove' && e.buttons !== 0) return
+      dragging.current = false
+      window.removeEventListener('pointerup', end, true)
+      window.removeEventListener('pointercancel', end, true)
+      window.removeEventListener('pointermove', end, true)
+    }
+    window.addEventListener('pointerup', end, true)
+    window.addEventListener('pointercancel', end, true)
+    window.addEventListener('pointermove', end, true)
   }
   const onScroll = (): void => {
     const el = scroller.current
     if (!el) return
     const left = el.scrollHeight - el.scrollTop - el.clientHeight
-    // Only reaching the very bottom yourself follows new output again.
-    if (left < 4 && Date.now() - shrankAt.current > 400) stick.current = true
+    // Reaching the end yourself follows new output again. Ending up there because the chat got
+    // shorter (a finished reply taking the place of the one being written) is not you scrolling
+    // down, so it is what you did that counts, not where the view is. While the scrollbar is
+    // held, the view follows for as long as it is at the end, and lets go when dragged off it.
+    if (dragging.current) stick.current = left < AT_END
+    else if (left < AT_END && Date.now() - pushedDown.current < PUSH_LASTS) stick.current = true
     const near = left < 80
     if (near !== atBottom) setAtBottom(near)
     findPinned()
@@ -404,9 +448,14 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         className="chat-scroll"
         ref={scroller}
         onScroll={onScroll}
-        onWheel={(e) => e.deltaY < 0 && letGo()}
-        onKeyDown={(e) => ['PageUp', 'ArrowUp', 'Home'].includes(e.key) && letGo()}
-        onPointerDown={(e) => e.target === e.currentTarget && letGo()}
+        onWheel={(e) => (e.deltaY < 0 ? letGo() : e.deltaY > 0 ? pushDown() : undefined)}
+        onPointerDown={(e) => {
+          startDrag()
+          if (e.target === e.currentTarget) letGo()
+        }}
+        // A finger on a touch screen: the view goes on gliding for a moment after it lifts.
+        onTouchMove={() => (pushedDown.current = Date.now())}
+        onTouchEnd={() => (pushedDown.current = Date.now())}
       >
         {pinned && pinnedItem?.kind === 'user' ? (
           <PinnedPrompt text={pinnedItem.text} images={pinnedItem.images ?? 0} ts={pinnedItem.ts} pinned={pinned} onReveal={revealPrompt} onStep={stepPrompt} />
