@@ -2,7 +2,7 @@
 // Add an entry for a release with something people should notice; leave out fixes nobody would
 // look for. Newest first. A few short lines each: what it is, and where to find it.
 
-export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media' | 'keys' | 'title' | 'bin' | 'server' | 'move' | 'settings' | 'team' | 'chats' | 'follow'
+export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media' | 'keys' | 'title' | 'bin' | 'server' | 'move' | 'settings' | 'team' | 'chats' | 'follow' | 'person' | 'typing' | 'github'
 
 export interface Highlight {
   icon: HighlightIcon
@@ -16,6 +16,31 @@ export interface ReleaseNotes {
 }
 
 export const RELEASE_NOTES: ReleaseNotes[] = [
+  {
+    version: '0.1.18',
+    highlights: [
+      {
+        icon: 'team',
+        title: 'Sharing a project with a team, made clear',
+        body: 'Each of you shares the project on your own PC. Loom now says who has not yet, offers you a project a teammate shares with one click, and marks a shared project in the sidebar on both sides. Settings, Team lists what you share and finds the rest by typing.'
+      },
+      {
+        icon: 'typing',
+        title: 'See a teammate typing',
+        body: 'In a chat a teammate writes in, their next message shows as they type it, before it is sent. Settings, Team switches off showing what you type.'
+      },
+      {
+        icon: 'person',
+        title: 'Who wrote what, and who is who',
+        body: 'Once a chat has changed hands, every message says whose it is. A teammate is now a round mark with a green dot while they are online, so a person is never taken for a project.'
+      },
+      {
+        icon: 'github',
+        title: 'GitHub on a new PC',
+        body: 'Without Git, Settings, Accounts used to offer nothing for GitHub. It now installs Git for you and then signs you in, with no restart.'
+      }
+    ]
+  },
   {
     version: '0.1.17',
     highlights: [
