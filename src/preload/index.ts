@@ -42,7 +42,7 @@ import type {
   ChatContextText
 } from '@shared/types'
 import type { PhoneAction, RemoteList, RemoteStatus, ToPhone } from '@shared/remote'
-import type { TeamsState, TeamSync } from '@shared/team'
+import type { TeamOffer, TeamsState, TeamSync } from '@shared/team'
 import type { MediaInfo } from '@shared/media'
 
 const api = {
@@ -336,6 +336,12 @@ const api = {
     const listener = (_e: unknown, sessionId: string, event: ChatEvent): void => cb(sessionId, event)
     ipcRenderer.on('team:live', listener)
     return () => ipcRenderer.removeListener('team:live', listener)
+  },
+  /** A teammate shares projects this PC has and does not share yet */
+  onTeamOffer: (cb: (offer: TeamOffer) => void): (() => void) => {
+    const listener = (_e: unknown, offer: TeamOffer): void => cb(offer)
+    ipcRenderer.on('team:offer', listener)
+    return () => ipcRenderer.removeListener('team:offer', listener)
   },
   /** More of a followed chat's history has arrived */
   onTeamGrew: (cb: (sessionId: string) => void): (() => void) => {

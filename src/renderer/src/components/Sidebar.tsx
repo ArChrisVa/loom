@@ -9,13 +9,14 @@ import {
   Plus,
   Settings,
   SquareTerminal,
+  Users,
   X
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
 import type { TeamChatEntry } from '@shared/team'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
-import { chatWorking, teamRole, useStore, type MenuItem } from '../store'
+import { chatWorking, namesOf, sharersOf, teamRole, useStore, type MenuItem } from '../store'
 import { MemberMark } from './TeamSettings'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
@@ -233,6 +234,12 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
   const teamChats = key ? (s.team?.chats ?? []).filter((c) => c.project === key && !openIds.has(c.sessionId)).sort((a, b) => b.lastAt - a.lastAt) : []
   const fromTeam = new Set(teamChats.map((c) => c.sessionId))
   const [allTeam, setAllTeam] = useState(false)
+  // The teams this PC shares the project with, and who in them shares it too. Sharing is done on
+  // each PC, so both sides of it are said here: a team this PC shares it with, and a teammate who
+  // shares it where this PC does not yet.
+  const sharedWith = key ? (s.team?.teams ?? []).filter((t) => t.projects.includes(key)) : []
+  const partners = [...new Map(sharedWith.flatMap((t) => sharersOf(t, key)).map((m) => [m.name, m])).values()]
+  const offers = key ? (s.team?.teams ?? []).filter((t) => !t.projects.includes(key) && sharersOf(t, key).length) : []
   const saved = sessions.filter((x) => !openIds.has(x.sessionId) && !fromTeam.has(x.sessionId))
   const visibleSaved = showAll ? saved : saved.slice(0, 6)
   const activeProject = s.tabs.find((t) => t.id === s.activeTabId)?.projectId === project.id
@@ -307,10 +314,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
                 label: key ? t.name : `${t.name} (this project has no git remote)`,
                 checked: on,
                 disabled: !key,
-                onSelect: () =>
-                  void window.loom.teamShare(t.id, project.path, !on).then((r) => {
-                    if (!r.ok) s.showToast(r.error ?? 'That project could not be shared.')
-                  })
+                onSelect: () => void s.shareProject(t.id, project.path, !on)
               }
             })
           : [{ label: 'Set up a team…', onSelect: () => s.openSettings('team') }]
@@ -426,17 +430,43 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
               No chats yet. Start one
             </button>
           ) : null}
-          {teamChats.length ? (
+          {sharedWith.length || offers.length ? (
             <div className="team-chats">
-              <div className="team-label">From the team</div>
-              {(allTeam ? teamChats : teamChats.slice(0, 6)).map((c) => (
-                <TeamChatRow key={c.sessionId} chat={c} />
-              ))}
-              {teamChats.length > 6 ? (
-                <button className="chat-row more" onClick={() => setAllTeam((v) => !v)}>
-                  {allTeam ? 'Show fewer' : `Show ${teamChats.length - 6} more`}
-                </button>
+              {sharedWith.length ? (
+                <>
+                  <div className="team-label" title={`This project is shared with ${namesOf(sharedWith)}: its members can open the chats in it`}>
+                    <Users /> {namesOf(sharedWith)}
+                  </div>
+                  {(allTeam ? teamChats : teamChats.slice(0, 6)).map((c) => (
+                    <TeamChatRow key={c.sessionId} chat={c} />
+                  ))}
+                  {teamChats.length > 6 ? (
+                    <button className="chat-row more" onClick={() => setAllTeam((v) => !v)}>
+                      {allTeam ? 'Show fewer' : `Show ${teamChats.length - 6} more`}
+                    </button>
+                  ) : null}
+                  {!teamChats.length ? (
+                    <p className="team-note">
+                      {partners.length
+                        ? `${namesOf(partners)} ${partners.length === 1 ? 'shares' : 'share'} it too, and can open your chats here. No other chats of theirs to show.`
+                        : 'Only you share it so far. A teammate sees your chats, and you theirs, once they share it on their PC too.'}
+                    </p>
+                  ) : null}
+                </>
               ) : null}
+              {offers.map((t) => {
+                const who = sharersOf(t, key)
+                return (
+                  <div key={t.id} className="team-offer">
+                    <p className="team-note">
+                      {namesOf(who)} {who.length === 1 ? 'shares' : 'share'} this project with {t.name}. Share it too to see each other&apos;s chats.
+                    </p>
+                    <button className="mini-action" onClick={() => void s.shareProject(t.id, project.path, true)}>
+                      <Users /> Share it too
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           ) : null}
           <div className="project-chat-actions">

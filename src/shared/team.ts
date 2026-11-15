@@ -59,6 +59,8 @@ export interface TeamRepo {
 export type TeamMsg =
   /** On connecting, and whenever the team changes: who I am and the team as I know it. The newest list (highest rev) is the one everyone keeps. */
   | { t: 'hello'; v: number; name: string; version: string; team: string; members: TeamMember[]; rev: number }
+  /** The projects I share with this team, by the address of their git remote: all of them, replacing what I said before */
+  | { t: 'projects'; keys: string[] }
   /** Every chat I hold in one shared project, replacing what I said before, and where my copy of it stands */
   | { t: 'chats'; project: string; chats: TeamChat[]; repo: TeamRepo | null }
   /**
@@ -121,10 +123,24 @@ export interface TeamStatus {
   members: (TeamMember & { online: boolean })[]
   /** The projects shared with this team, by the address of their git remote */
   projects: string[]
+  /** What each of the others shares with it, as last heard from them, by member */
+  shares: Record<string, string[]>
   /** An invitation waiting to be used */
   invite: { url: string; expiresAt: number } | null
   /** People who opened it and wait to be let in */
   requests: { id: string; name: string; code: string }[]
+}
+
+/** A teammate started sharing projects that this PC does not share yet */
+export interface TeamOffer {
+  teamId: string
+  team: string
+  /** The teammate, by name */
+  member: string
+  /** The folders, on this PC, of the ones it has too: they can be shared at once */
+  paths: string[]
+  /** The ones it does not have, by the address of their git remote: to be cloned and added first */
+  missing: string[]
 }
 
 /** How joining a team is going, on the newcomer's PC */

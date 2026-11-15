@@ -40,7 +40,7 @@ import {
   type TunnelInfo
 } from '@shared/types'
 import type { RemoteStatus } from '@shared/remote'
-import type { TeamChatEntry, TeamLocal, TeamsState, TeamStatus, TeamSync } from '@shared/team'
+import type { TeamChatEntry, TeamLocal, TeamMember, TeamsState, TeamStatus, TeamSync } from '@shared/team'
 import {
   cleanLayout,
   inFileRow,
@@ -303,6 +303,8 @@ interface Store extends PersistedState {
   /** Histories being copied from a teammate, by chat */
   teamSync: Record<string, TeamSync>
   refreshTeamKeys: () => Promise<void>
+  /** Shares a project with a team, or stops; says what the teammates still have to do for its chats to show */
+  shareProject: (teamId: string, path: string, on: boolean) => Promise<void>
   /** Copies a teammate's chat to this PC, opens it in a tab and follows it as it grows */
   openTeamChat: (entry: TeamChatEntry) => Promise<void>
   /** Asks whoever writes in a chat this PC follows to pass it on, so Claude works in it here */
@@ -472,6 +474,17 @@ export function teamRole(
   if (!l || !t) return null
   const writer = t.members.find((m) => m.id === l.writer)
   return { local: l, team: t, mine: l.writer === t.me, writerName: writer?.name ?? 'A teammate', online: !!writer?.online }
+}
+
+/** The teammates who share a project (by the address of its git remote) with a team, besides this PC */
+export function sharersOf(t: TeamStatus, key: string | null | undefined): (TeamMember & { online: boolean })[] {
+  return key ? t.members.filter((m) => m.id !== t.me && (t.shares[m.id] ?? []).includes(key)) : []
+}
+
+/** "Maria", "Maria and Chris", "Maria, Chris and Dana" */
+export function namesOf(people: { name: string }[]): string {
+  const names = people.map((p) => p.name)
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
 /** How many other chats one message can bring along */
@@ -827,6 +840,24 @@ export const useStore = create<Store>((set, get) => {
         if (!tab) return
         teamLiveAt.set(sessionId, Date.now())
         get().handleChatEvent(tab.id, event)
+      })
+      // A teammate shares a project this PC has too: offered once, where it can be taken up.
+      window.loom.onTeamOffer((offer) => {
+        const names = offer.paths.map((p) => projectForPath(get().projects, p)?.name ?? baseName(p))
+        if (!names.length) {
+          // None of them is on this PC: said, with what it takes, since nothing else here would show it.
+          if (!offer.missing.length) return
+          const what = offer.missing.length === 1 ? offer.missing[0] : `${offer.missing[0]} and ${offer.missing.length - 1} more`
+          return get().showToast(`${offer.member} shares ${what} with ${offer.team}, which is not on this PC. Clone it and add its folder to Loom, then share it too.`, {
+            label: 'Open Team',
+            run: () => get().openSettings('team')
+          })
+        }
+        const one = names.length === 1
+        get().showToast(`${offer.member} shares ${one ? names[0] : `${names[0]} and ${names.length - 1} more`} with ${offer.team}. Share ${one ? 'it' : 'them'} too to see each other's chats there.`, {
+          label: one ? 'Share it too' : 'Open Team',
+          run: () => (one ? void get().shareProject(offer.teamId, offer.paths[0], true) : get().openSettings('team'))
+        })
       })
       // More of the history arrived. Heard live already, there is nothing to add; otherwise
       // (this window opened it mid-way, or was away) the tab reads it again.
@@ -1881,6 +1912,26 @@ export const useStore = create<Store>((set, get) => {
     refreshTeamKeys: async () => {
       const teamKeys = await window.loom.teamKeys().catch(() => ({}) as Record<string, string | null>)
       set({ teamKeys })
+    },
+    shareProject: async (teamId, path, on) => {
+      const r = await window.loom.teamShare(teamId, path, on)
+      if (!r.ok) return get().showToast(r.error ?? 'That project could not be shared.')
+      if (!on) return
+      await get().refreshTeamKeys()
+      const t = get().team?.teams.find((x) => x.id === teamId)
+      const project = projectForPath(get().projects, path)
+      const key = project ? get().teamKeys[project.id] : null
+      if (!t || !key) return
+      const name = project?.name ?? baseName(path)
+      const others = t.members.filter((m) => m.id !== t.me)
+      const also = sharersOf(t, key)
+      // Sharing is done on each PC: what is left for the others to do is said here, where it was just done.
+      if (!others.length) get().showToast(`${name} is shared with ${t.name}. Nobody else is in the team yet: invite someone in Settings, Team.`)
+      else if (also.length) get().showToast(`${name} is shared with ${t.name}. ${namesOf(also)} ${also.length === 1 ? 'shares' : 'share'} it too, so you see each other's chats under the project.`)
+      else {
+        const who = others.length === 1 ? others[0].name : 'Each teammate'
+        get().showToast(`${name} is shared with ${t.name}. ${who} has to share it too, on their PC, before you see each other's chats: the same repository added to their Loom, and shared in Settings, Team.`)
+      }
     },
     openTeamChat: async (entry) => {
       if (POPOUT_TAB) return

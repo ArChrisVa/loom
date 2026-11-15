@@ -49,6 +49,7 @@ import {
   type TeamLocal,
   type TeamMember,
   type TeamMsg,
+  type TeamOffer,
   type TeamRepo,
   type TeamsState,
   type TeamStatus,
@@ -74,6 +75,8 @@ interface TeamCfg {
   members: TeamMember[]
   rev: number
   projects: string[]
+  /** What each of the others shares with the team, as last heard from them: known while they are away too */
+  shares?: Record<string, string[]>
 }
 
 interface SavedFile {
@@ -116,6 +119,8 @@ interface Link {
   seen: Map<string, { sid: string; n: number }>
   /** What each member says it holds, by project */
   theirs: Map<string, Map<string, { chats: TeamChat[]; repo: TeamRepo | null }>>
+  /** Members whose Loom says outright which projects it shares; an older one is read from the chats it lists */
+  tells: Set<string>
   invite: { id: string; secret: Uint8Array<ArrayBuffer>; url: string; expiresAt: number; fails: number; timer: ReturnType<typeof setTimeout> } | null
   requests: Map<string, JoinRequest>
   /** Members following chats this PC holds: for each chat, how far each has been sent */
@@ -243,6 +248,7 @@ function newLink(cfg: TeamCfg): Link {
     online: new Set(),
     seen: new Map(),
     theirs: new Map(),
+    tells: new Set(),
     invite: null,
     requests: new Map(),
     followers: new Map()
@@ -269,6 +275,7 @@ function status(link: Link): TeamStatus {
     me: c.me,
     members: c.members.map((m) => ({ ...m, online: m.id === c.me ? link.relay === 'online' : link.online.has(m.id) })),
     projects: c.projects,
+    shares: Object.fromEntries(c.members.filter((m) => m.id !== c.me).map((m) => [m.id, c.shares?.[m.id] ?? []])),
     invite: link.invite ? { url: link.invite.url, expiresAt: link.invite.expiresAt } : null,
     requests: [...link.requests.values()].map(({ conn, name, code }) => ({ id: conn, name, code }))
   }
@@ -714,6 +721,7 @@ const announcing = new Map<string, ReturnType<typeof setTimeout>>()
 /** Says which chats this PC holds in each shared project, to one member or to all. */
 async function announce(link: Link, to?: string): Promise<void> {
   if (link.relay !== 'online') return
+  void post(link, { t: 'projects', keys: link.cfg.projects }, to)
   for (const project of link.cfg.projects) {
     const mine = await held(link, project, true)
     if (!mine) continue
@@ -1028,11 +1036,24 @@ async function onMember(link: Link, from: string, m: TeamMsg): Promise<void> {
       }
       return emit()
     }
+    case 'projects': {
+      if (!Array.isArray(m.keys)) return
+      link.tells.add(from)
+      heardShares(link, from, [...new Set(m.keys.filter((k): k is string => typeof k === 'string' && k.length > 0 && k.length <= 300))].slice(0, 200))
+      return emit()
+    }
     case 'chats': {
       if (typeof m.project !== 'string' || !Array.isArray(m.chats)) return
       const by = link.theirs.get(from) ?? new Map<string, { chats: TeamChat[]; repo: TeamRepo | null }>()
       by.set(m.project, { chats: m.chats.filter((x) => UUID.test(x.sessionId)).slice(0, 80), repo: m.repo ?? null })
       link.theirs.set(from, by)
+      // An older Loom does not say which projects it shares: a list of chats is it sharing one, and
+      // an empty list with nothing about its copy is it sharing that one no longer.
+      if (!link.tells.has(from)) {
+        const had = c.shares?.[from] ?? []
+        const gone = !m.chats.length && !m.repo
+        if (gone ? had.includes(m.project) : !had.includes(m.project)) heardShares(link, from, gone ? had.filter((k) => k !== m.project) : [...had, m.project])
+      }
       for (const chat of m.chats) {
         const l = local[chat.sessionId]
         // They hold it now (it was passed on while this PC was away): this PC's copy follows theirs.
@@ -1094,6 +1115,27 @@ async function onMember(link: Link, from: string, m: TeamMsg): Promise<void> {
       penWaiters.get(m.sessionId)?.({ ok: false, reason: m.reason })
       return
   }
+}
+
+/**
+ * A member said which projects they share. Kept with the team, so it is known while they are away;
+ * a project they share and this PC has but does not share yet is offered to the windows, once.
+ */
+function heardShares(link: Link, from: string, keys: string[]): void {
+  const c = link.cfg
+  const before = c.shares?.[from] ?? []
+  if (before.length === keys.length && before.every((k) => keys.includes(k))) return
+  c.shares = { ...c.shares, [from]: keys }
+  // What they no longer share is no longer listed.
+  const by = link.theirs.get(from)
+  if (by) for (const project of [...by.keys()]) if (!keys.includes(project)) by.delete(project)
+  save()
+  const fresh = keys.filter((k) => !before.includes(k) && !c.projects.includes(k))
+  if (!fresh.length) return
+  void Promise.all(fresh.map(async (key) => ({ key, path: await folderOf(key) }))).then((found) => {
+    const offer: TeamOffer = { teamId: c.id, team: c.name, member: nameOf(link, from), paths: found.flatMap((x) => (x.path ? [x.path] : [])), missing: found.filter((x) => !x.path).map((x) => x.key) }
+    toWindows('team:offer', offer)
+  })
 }
 
 async function projectOf(link: Link, sessionId: string): Promise<string | null> {
@@ -1285,6 +1327,7 @@ export function setupTeams(d: Deps): void {
     sendRaw(link, { t: 'expel', id: memberId })
     link.cfg.members = link.cfg.members.filter((m) => m.id !== memberId)
     link.cfg.rev++
+    if (link.cfg.shares) delete link.cfg.shares[memberId]
     link.theirs.delete(memberId)
     link.online.delete(memberId)
     save()
@@ -1299,7 +1342,11 @@ export function setupTeams(d: Deps): void {
     link.cfg.projects = on ? [...new Set([...link.cfg.projects, key])] : link.cfg.projects.filter((p) => p !== key)
     save()
     if (on) void announce(link)
-    else void post(link, { t: 'chats', project: key, chats: [], repo: null })
+    else {
+      void post(link, { t: 'projects', keys: link.cfg.projects })
+      // An older Loom is told the way it knows: an empty list.
+      void post(link, { t: 'chats', project: key, chats: [], repo: null })
+    }
     emit()
     return { ok: true }
   })

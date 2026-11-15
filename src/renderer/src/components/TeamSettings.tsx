@@ -1,7 +1,9 @@
-import { Check, Copy, LogOut, UserPlus, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { Check, Copy, LogOut, Plus, UserPlus, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { TeamStatus } from '@shared/team'
-import { useStore } from '../store'
+import type { Project } from '@shared/types'
+import { namesOf, sharersOf, useStore } from '../store'
+import { ProjectMark } from './ProjectMark'
 
 /** A member, as a small tile with their initial: beside their chats, in the list of members. */
 export function MemberMark({ name, online }: { name: string; online?: boolean }): ReactNode {
@@ -9,6 +11,154 @@ export function MemberMark({ name, online }: { name: string; online?: boolean })
     <span className={`member-mark${online === false ? ' is-away' : ''}`} aria-hidden="true">
       {(name.trim()[0] ?? '?').toUpperCase()}
     </span>
+  )
+}
+
+/**
+ * The projects a team shares, from this PC's side. The ones shared here are a short list, each
+ * saying who else shares it; the ones teammates share and this PC does not are offered; every
+ * other project waits behind Share a project, found by typing, with the ones a team cannot share
+ * (no git remote) folded away at its end.
+ */
+function TeamProjects({ team }: { team: TeamStatus }): ReactNode {
+  const s = useStore.getState()
+  const projects = useStore((st) => st.projects)
+  const groups = useStore((st) => st.groups)
+  const keys = useStore((st) => st.teamKeys)
+  const [picking, setPicking] = useState(false)
+  const [filter, setFilter] = useState('')
+  const others = team.members.filter((m) => m.id !== team.me)
+
+  const shared = projects.filter((p) => !!keys[p.id] && team.projects.includes(keys[p.id]!))
+  const free = projects.filter((p) => !!keys[p.id] && !team.projects.includes(keys[p.id]!))
+  // Looked at and found without a remote: null. Not looked at yet is neither here nor there.
+  const bare = projects.filter((p) => keys[p.id] === null)
+  const alone = shared.some((p) => !sharersOf(team, keys[p.id]).length)
+
+  // What teammates share and this PC does not, by the address of the git remote.
+  const theirs = useMemo(() => {
+    const by = new Map<string, typeof others>()
+    for (const m of others) for (const k of team.shares[m.id] ?? []) if (!team.projects.includes(k)) by.set(k, [...(by.get(k) ?? []), m])
+    return [...by.entries()].map(([key, who]) => ({ key, who, here: projects.find((p) => keys[p.id] === key) }))
+  }, [team.shares, team.projects, team.members, projects, keys])
+
+  // The picker: the projects not shared yet, under the groups the sidebar keeps them in.
+  const q = filter.trim().toLowerCase()
+  const found = free.filter((p) => !q || p.name.toLowerCase().includes(q) || (keys[p.id] ?? '').toLowerCase().includes(q))
+  const sections: { id: string; label: string; items: Project[] }[] = [
+    ...groups.map((g) => ({ id: g.id, label: g.name, items: found.filter((p) => p.groupId === g.id) })),
+    { id: '', label: groups.length ? 'In no group' : '', items: found.filter((p) => !p.groupId || !groups.some((g) => g.id === p.groupId)) }
+  ].filter((x) => x.items.length)
+
+  return (
+    <div className="team-projects">
+      {shared.length ? (
+        <ul className="share-list" aria-label={`Projects you share with ${team.name}`}>
+          {shared.map((p) => {
+            const also = sharersOf(team, keys[p.id])
+            return (
+              <li key={p.id} className="share-row" data-shared={p.name}>
+                <ProjectMark project={p} size={16} />
+                <span className="share-name" title={keys[p.id] ?? undefined}>
+                  {p.name}
+                </span>
+                <span className={`share-who${also.length ? '' : ' is-alone'}`}>{also.length ? `${namesOf(also)} too` : others.length ? 'Only you so far' : ''}</span>
+                <button className="icon-btn small" title={`Stop sharing ${p.name}`} aria-label={`Stop sharing ${p.name}`} onClick={() => void s.shareProject(team.id, p.path, false)}>
+                  <X />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <p className="set-note share-empty">Nothing is shared yet, so nobody sees a chat of yours and you see none of theirs.</p>
+      )}
+      {alone && others.length ? (
+        <p className="set-note">
+          Only you so far: {others.length === 1 ? others[0].name : 'a teammate'} has to share the project too, on their own PC, with the same repository added to their Loom. Until then neither of you
+          sees the other&apos;s chats in it.
+        </p>
+      ) : null}
+
+      {theirs.length ? (
+        <div className="share-offers">
+          <div className="share-head">Shared by teammates, not by you yet</div>
+          <ul className="share-list">
+            {theirs.map(({ key, who, here }) => (
+              <li key={key} className="share-row" data-offer={key}>
+                {here ? <ProjectMark project={here} size={16} /> : null}
+                <span className="share-name" title={key}>
+                  {here ? here.name : key}
+                </span>
+                <span className="share-who">{namesOf(who)}</span>
+                {here ? (
+                  <button className="btn small" onClick={() => void s.shareProject(team.id, here.path, true)}>
+                    Share it too
+                  </button>
+                ) : (
+                  <span className="share-missing">Not on this PC</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {theirs.some((x) => !x.here) ? <p className="set-note">For one that is not on this PC, clone the repository, add its folder to Loom, and it shows here to share.</p> : null}
+        </div>
+      ) : null}
+
+      {picking ? (
+        <div className="share-picker">
+          <div className="share-picker-top">
+            <input className="field" type="search" autoFocus value={filter} placeholder="Find a project" aria-label="Find a project to share" onChange={(e) => setFilter(e.target.value)} />
+            <button
+              className="btn"
+              onClick={() => {
+                setPicking(false)
+                setFilter('')
+              }}
+            >
+              Done
+            </button>
+          </div>
+          <div className="share-options" role="group" aria-label="Projects you can share">
+            {sections.map((sec) => (
+              <div key={sec.id} className="share-group">
+                {sec.label ? <div className="share-head">{sec.label}</div> : null}
+                {sec.items.map((p) => (
+                  <button key={p.id} className="share-option" data-option={p.name} onClick={() => void s.shareProject(team.id, p.path, true)}>
+                    <ProjectMark project={p} size={16} />
+                    <span className="share-name">{p.name}</span>
+                    <span className="share-key">{keys[p.id]}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+            {!sections.length ? <p className="set-note share-none">{free.length ? 'No project matches that.' : projects.length ? 'Every project with a git remote is shared already.' : 'Add a project folder first.'}</p> : null}
+            {bare.length ? (
+              <details className="share-bare">
+                <summary>
+                  {bare.length} {bare.length === 1 ? 'project has' : 'projects have'} no git remote
+                </summary>
+                <p className="set-note">
+                  A team tells that everyone has the same project by the address of its git remote. Put one of these on GitHub, or another git host, and it can be shared.
+                </p>
+                <ul className="share-bare-list">
+                  {bare.map((p) => (
+                    <li key={p.id}>
+                      <ProjectMark project={p} size={14} />
+                      {p.name}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <button className="btn" onClick={() => setPicking(true)}>
+          <Plus /> Share a project
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -59,8 +209,6 @@ function Invite({ team }: { team: TeamStatus }): ReactNode {
 
 function TeamBlock({ team }: { team: TeamStatus }): ReactNode {
   const s = useStore.getState()
-  const projects = useStore((st) => st.projects)
-  const keys = useStore((st) => st.teamKeys)
   const line = relayLine(team)
   const leave = async (): Promise<void> => {
     const pick = await s.ask({
@@ -85,10 +233,6 @@ function TeamBlock({ team }: { team: TeamStatus }): ReactNode {
       cancel: 'cancel'
     })
     if (pick === 'remove') void window.loom.teamRemove(team.id, id)
-  }
-  const share = async (path: string, on: boolean): Promise<void> => {
-    const r = await window.loom.teamShare(team.id, path, on)
-    if (!r.ok) s.showToast(r.error ?? 'That project could not be shared.')
   }
   return (
     <div className="team-block" data-team={team.id}>
@@ -144,27 +288,14 @@ function TeamBlock({ team }: { team: TeamStatus }): ReactNode {
 
       <div className="set-row">
         <div className="set-text">
-          <div className="set-title">Projects shared with it</div>
+          <div className="set-title">Shared projects</div>
           <div className="set-hint">
-            Every chat in a shared project shows for the team, unless you keep one private (right-click it in the sidebar). A project is matched on each PC by its git remote, so the folder can be anywhere.
+            Sharing is done on each PC. You and a teammate see each other&apos;s chats in a project once both of you have its repository in Loom and both share it here. It is matched by its git
+            remote, so the folder can be anywhere. Every chat in it shows for the team, unless you keep one private (right-click it in the sidebar).
           </div>
         </div>
         <div className="set-control">
-          <div className="team-projects">
-            {projects.map((p) => {
-              const key = keys[p.id]
-              return (
-                <label key={p.id} className="check-row" title={key ? key : 'This project has no git remote, which is how a team tells that everyone has the same project'}>
-                  <input type="checkbox" disabled={!key} checked={!!key && team.projects.includes(key)} onChange={(e) => void share(p.path, e.target.checked)} />
-                  <span>
-                    {p.name}
-                    {!key ? <span className="member-note"> has no git remote</span> : null}
-                  </span>
-                </label>
-              )
-            })}
-            {!projects.length ? <p className="set-note">Add a project folder first.</p> : null}
-          </div>
+          <TeamProjects team={team} />
         </div>
       </div>
     </div>
