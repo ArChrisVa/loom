@@ -1,13 +1,14 @@
-# Phone access: remote.loom.baby
+# Phone access and teams: remote.loom.baby
 
-The page a linked phone opens, and the relay that connects it to Loom on the PC. Both run as one Cloudflare Worker on the Free plan.
+The page a linked phone opens, the relay that connects it to Loom on the PC, and the rooms where the Looms of a team meet. All of it runs as one Cloudflare Worker on the Free plan.
 
 | Folder | What it is |
 | --- | --- |
-| `app/` | The phone page: React, built by Vite into `dist/` |
-| `worker/` | The relay: a Worker that hands each Loom install's connections to a Durable Object |
+| `app/` | The phone page: React, built by Vite into `dist/`. Also `app/team/`, the page an invitation to a team opens in a browser |
+| `worker/` | The relay: a Worker that hands each Loom install's connections, and each team's, to a Durable Object |
 | `public/` | Files served as they are: the icon, the web app manifest, the security headers |
 | `../src/shared/remote.ts` | The messages and the encryption, shared with Loom itself |
+| `../src/shared/team.ts` | What the Looms of a team say to each other |
 
 Loom's side is `src/main/remote.ts` (the connection, the linked phones, what a phone may ask for) and `src/renderer/src/remoteAgent.ts` (what a window sends a phone about the chats it shows).
 
@@ -21,6 +22,18 @@ Loom and the phone both connect out to the relay over WebSocket, to a room named
 - **The relay knows** the room id, the phones' ids, and how big and how often messages are. It lets one PC own a room (the first to sign in with the room's key) and takes phone connections only from this page's own origin.
 
 The relay uses Durable Objects with WebSocket hibernation: a room with nothing to pass along is put away while its connections stay open, and Loom's keep-alive pings are answered without waking it.
+
+## Teams
+
+The Worker has a second kind of room, for a team: the Looms of people who work on the same repository, PC to PC, with no page in between. Loom's side is `src/main/team.ts`.
+
+- **The room** is `/v1/team/<id>`, a Durable Object of class `Team`. Each member connects with a member id and signs in with a key of their own; the room keeps a hash of each member's key and nothing else. The first to sign in founds it. A member lets a newcomer in or takes a member out, and one who stops pinging for 75 seconds is taken to have left. Browsers are refused: only Loom connects here.
+- **Joining.** An invitation is a link, `remote.loom.baby/team#t=<team>&s=<secret>`, for one person, good for 15 minutes. Opened in a browser it lands on a page that says to paste it in Loom, under Settings, Team. The newcomer's Loom and a member's Loom swap public keys sealed with a key made from the secret, both show four digits worked out from the result, and when the member allows it the team's key and its list of members are sent, sealed for the newcomer alone.
+- **Every message** between members is sealed with AES-256-GCM under the team's key, bound to the team and to its sender. It carries a session id, a count that only goes up and the time, so one recorded and sent again is dropped. Each PC keeps the team's key in `%APPDATA%\Loom\teams.json`, encrypted for the Windows account.
+- **What members tell each other:** which chats each one holds in the projects the team shares (a project goes by the address of its git remote), a chat's history in pieces when asked for and then as it grows, what Claude is doing in a chat right now for those who follow it, and the passing of a chat from the one who writes in it to the next. A history is rewritten on arrival so that the sender's project folder reads as the receiver's.
+- **The relay knows** the team's id, its members' ids and when each is connected, and how big and how often messages are. It cannot read them and keeps none: a chat goes straight from the PC that has it to the PC that asked.
+
+Both sides have to speak the same version (`TEAM_VERSION` in `src/shared/team.ts`).
 
 ## Run it locally
 
@@ -41,7 +54,7 @@ npx wrangler login        # once, with the Cloudflare account that has the loom.
 npm run remote:deploy
 ```
 
-`wrangler.jsonc` routes the Worker to `remote.loom.baby` as a custom domain, so the first deploy also creates its DNS record and certificate. The Durable Object class is SQLite-backed, the kind the Free plan includes.
+`wrangler.jsonc` routes the Worker to `remote.loom.baby` as a custom domain, so the first deploy also creates its DNS record and certificate. The Durable Object classes (`Room` for phones, `Team` for teams) are SQLite-backed, the kind the Free plan includes. A release of Loom that adds something to the relay needs the Worker deployed first: teams do nothing until the Worker with the `Team` class is live.
 
 The page and Loom have to speak the same version of the protocol (`REMOTE_VERSION` in `src/shared/remote.ts`); linking refuses a pair that doesn't. When that number changes, deploy the Worker and release Loom together.
 

@@ -46,6 +46,9 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 - File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, then its time and the arrows to the message before and after, which stay at the column's right edge whatever the message's length); the conversation passes beneath it with a blur.
 - What you can do to a running task is said in words, in small pills: Run in background in glass, Stop in the red of the chat's Stop with its filled square. Send to background sits beside the lit Send as a glass key.
+- A teammate is a small glass tile with their initial, lavender while they are online and grey when away. It marks their chats in the sidebar (listed under the project's own, below a faint line, as From the team) and the chat header says who writes in a chat. A history being copied fills its row from the left in lavender.
+- A chat someone else writes in has no message box: a raised bar in its place names the writer and offers the two ways to carry on, Continue here (lit) and Take a copy (glass).
+- Another chat brought into a message waits in the message box as a chip: grey with a turning ring while Claude writes its notes, lavender when ready, amber if the notes could not be written. Under the sent message a small grey line names the chat that came along, as Send to background does.
 - Running servers are green LEDs.
 - A public link (Cloudflare Tunnel) is the one place Cloudflare's orange appears: an outlined cloud offers it, a filled one marks it open, and an orange cloud stays in the status bar while any site is public.
 - The live dot is violet and sends out a ring every two seconds while Claude thinks or works, beside "Claude is working" in lavender: the only animation that loops. A finished turn ends with a green check and "Done in"; a stopped one says so, without the check.
@@ -61,6 +64,8 @@ All drawn in theme: dropdowns with a drawn chevron and a glass list, checkboxes 
 Tooltips are Loom's too, never the system's pale box: dark glass at 12px, under the control and centred on it (over it at the bottom of the window), fading in after half a second of rest, there at once when moving from one control to the next, and gone at once. Every `title` in the app goes through them (`lib/tooltips.ts`).
 
 Settings lists its sections down the left as tabs, one section showing at a time; the chosen one carries the lit wash of the current project in the sidebar, its icon in lavender. Room for the scrollbar is always kept, so nothing shifts between a long section and a short one. On a narrow window the sections become one row that scrolls.
+
+A menu can carry a small grey line that names the items under it (From the team, On this PC), and a menu opened from the bottom of the window grows upwards from its button.
 
 A toast can offer one thing to do about what it says (Undo, Open) as a small lavender pill beside the text.
 

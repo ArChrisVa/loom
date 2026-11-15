@@ -100,6 +100,16 @@ Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it
 
 The phone and the PC talk through a small relay, and everything between them is encrypted with a key only the two hold: the relay passes sealed messages along and cannot read them. Phone access is off until you link a phone, each phone can be removed in Settings, and the status bar says when one is connected. The page can be added to the phone's Home Screen; link that copy with the Scan the code button inside it. How it works is written up in [remote/README.md](remote/README.md).
 
+### A team on the same project
+
+People who work on the same repository, each with it on their own PC, can share their chats. Start a team in Settings, Team, and invite someone with a link: they paste it in their Loom, you both see the same four digits, and you let them in. Then tick the projects the team shares. A project is told apart by its git remote, so each person's folder can be anywhere.
+
+Your teammates' chats show in the sidebar under the project, with who writes in each. Open one and its history is copied to your PC and kept up to date, so you read along while their Claude works. One person writes in a chat at a time. **Continue here** asks your teammate to pass it on: from then on Claude works on your PC, in your copy of the project and on your Claude account, with the whole conversation behind it, and your teammate follows instead. **Take a copy** starts a chat of your own from the same history and takes nothing from anyone. To keep a chat to yourself, right-click it and pick Keep private from the team.
+
+A chat can also come along as background. The button next to Attach images in the message box lists the project's other chats, your teammates' and your own. Pick one and Claude writes notes on it (what was asked, found, changed, decided and left unfinished), which go to Claude with your next message. The other chat is left as it is.
+
+A team shares chats, not files: Claude works on each PC's own copy of the project, so pull before you continue a teammate's chat. Loom says which branch they are on and how many changes they have not committed. What a team shares goes from PC to PC through the same relay as phone access, sealed with a key that only its members hold.
+
 ### Left out on purpose
 
 No extension store, no wall of settings, no debugger setups, no menus inside menus. For anything bigger, open the file in the editor you like; Loom works fine next to it.
@@ -130,6 +140,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 - **Chat history stays on your PC,** in `~/.claude/projects`, where Claude Code keeps it. Loom's own state (projects, groups, open tabs, settings) is in `%APPDATA%\Loom\loom-state.json`.
 - **GitHub is contacted to check for updates,** and for nothing else.
 - **A linked phone goes through a relay that cannot read it.** What passes between the phone and the PC is sealed with a key only the two hold. The phone's key lives in its browser, where the page can use it but not read it, and on the PC it is encrypted for your Windows account. A linked phone can do what you can in a chat, including approving what Claude asks to run, so remove a lost phone in Settings, Phone access.
+- **A team gets the chats of the projects you share with it, and nothing else.** Their histories go to your teammates' PCs sealed with the team's key, which the relay never has; on each PC the key is encrypted for the Windows account. Nothing is shared until you start or join a team and tick a project, and a chat marked private stays on your PC. A member you remove can no longer connect; what was already copied to their PC stays there. Files are never sent.
 - **Previews are sandboxed.** A site in a preview pane runs with no access to Loom.
 - **Settings, Accounts shows who this PC is signed in as:** your Claude account, and GitHub, Cloudflare and Vercel as their own tools have them. That is what a push or a deploy from a terminal or from Claude goes out as. Loom reads the names and keeps nothing.
 
@@ -162,6 +173,7 @@ Reloading starts the window over without stopping anything: chats, terminals and
 ## Good to know
 
 - **One chat, one app at a time.** Don't continue the same chat in Loom and somewhere else at once: both write to the same history file.
+- **A team chat changes hands only at rest.** While Claude is working in it, or waiting for an answer, Continue here says so and you try again after. A teammate who is offline cannot pass a chat on: take a copy to carry on from what your PC has.
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
