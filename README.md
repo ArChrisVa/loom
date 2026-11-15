@@ -1,12 +1,12 @@
 <p align="center">
   <a href="https://loom.baby">
-    <img src="docs/banner.png" width="100%" alt="Loom. Claude Code, without the terminal. Free and open source, for vibe coding on Windows.">
+    <img src="docs/banner.png" width="100%" alt="Loom. Claude Code, without the terminal. For vibe coding on Windows.">
   </a>
 </p>
 
 <p align="center">
   <a href="https://github.com/PixFrixSystems/loom/releases/latest"><img src="https://img.shields.io/github/v/release/PixFrixSystems/loom?style=flat-square&label=release&labelColor=10131c&color=8c8af6" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8c8af6?style=flat-square&labelColor=10131c" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-FSL--1.1--MIT-8c8af6?style=flat-square&labelColor=10131c" alt="FSL-1.1-MIT license"></a>
   <img src="https://img.shields.io/badge/Windows-11-8c8af6?style=flat-square&labelColor=10131c" alt="For Windows 11">
 </p>
 
@@ -20,7 +20,7 @@
   <a href="https://github.com/PixFrixSystems/loom/issues">Report a problem</a>
 </p>
 
-Loom is a free, open-source desktop app for Windows that puts Claude Code in a chat window, with your running site, your files, a terminal and git beside it. Chat with Claude, approve changes with a click and watch your site update next to the chat. Just the tools you use, none of the bloat.
+Loom is a free, source-available desktop app for Windows that puts Claude Code in a chat window, with your running site, your files, a terminal and git beside it. Chat with Claude, approve changes with a click and watch your site update next to the chat. Just the tools you use, none of the bloat.
 
 It is Claude Code underneath, built on Anthropic's Claude Agent SDK. Your sign-in, settings, `CLAUDE.md`, skills, hooks and chat history all carry over, and chats you started in the terminal show up in Loom, and the other way round.
 
@@ -224,6 +224,14 @@ Loom is at version 0.1 and is used every day on Windows 11, so expect it to keep
 
 ## License
 
-[MIT](LICENSE). Loom is made by [PixFrix](https://pixfrix.gr/).
+Loom is source available under the [Functional Source License 1.1, MIT Future License](LICENSE) (FSL-1.1-MIT). The licence text is what counts; in short:
+
+- You can read the code, build it, change it and use it, for yourself or at work, free of charge.
+- You may not make Loom, or something built from it, available to others as a commercial product or service that competes with it.
+- Two years after a version is released, that version becomes MIT.
+
+Versions up to 0.1.16 were released under MIT and stay MIT.
+
+Loom is made by [PixFrix](https://pixfrix.gr/).
 
 Loom is an independent project built on Anthropic's Claude Agent SDK. It is not made by or affiliated with Anthropic; Claude and Claude Code are trademarks of Anthropic. It is also not related to Atlassian's Loom video tool, or to any other product with the same name.
