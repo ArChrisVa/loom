@@ -1087,6 +1087,9 @@ async function onMember(link: Link, from: string, m: TeamMsg): Promise<void> {
     case 'live':
       if (following.get(m.sessionId)?.member === from) toWindows('team:live', m.sessionId, m.ev)
       return
+    case 'typing':
+      if (following.get(m.sessionId)?.member === from) toWindows('team:typing', m.sessionId, typeof m.text === 'string' ? m.text.slice(0, TYPING_MOST) : '')
+      return
     case 'pen-ask': {
       // Only a chat at rest changes hands: Claude is not cut off in the middle of a turn.
       if (!(await holds(link, m.sessionId))) return void post(link, { t: 'pen-no', sessionId: m.sessionId, reason: 'gone' }, from)
@@ -1136,6 +1139,30 @@ function heardShares(link: Link, from: string, keys: string[]): void {
     const offer: TeamOffer = { teamId: c.id, team: c.name, member: nameOf(link, from), paths: found.flatMap((x) => (x.path ? [x.path] : [])), missing: found.filter((x) => !x.path).map((x) => x.key) }
     toWindows('team:offer', offer)
   })
+}
+
+// ---------- What is being typed ----------
+
+/** The most of a message box that is passed on */
+const TYPING_MOST = 4000
+const typingAt = new Map<string, number>()
+const typingLater = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** What this PC has in a chat's message box, for the members who follow the chat: a few times a second at most, the latest always. */
+function typing(sessionId: string, text: string): void {
+  if (!UUID.test(sessionId) || typeof text !== 'string') return
+  // Switched off in Settings: the box is said to be empty, and stays so.
+  const said = deps.settings().teamTyping === false ? '' : text.slice(0, TYPING_MOST)
+  const send = (): void => {
+    typingLater.delete(sessionId)
+    typingAt.set(sessionId, Date.now())
+    for (const link of links.values()) for (const to of link.followers.get(sessionId)?.keys() ?? []) void post(link, { t: 'typing', sessionId, text: said }, to)
+  }
+  const pending = typingLater.get(sessionId)
+  if (pending) clearTimeout(pending)
+  const since = Date.now() - (typingAt.get(sessionId) ?? 0)
+  if (since >= 400) send()
+  else typingLater.set(sessionId, setTimeout(send, 400 - since))
 }
 
 async function projectOf(link: Link, sessionId: string): Promise<string | null> {
@@ -1369,6 +1396,7 @@ export function setupTeams(d: Deps): void {
   ipcMain.handle('team:take', (_e, sessionId: string) => take(sessionId))
   ipcMain.handle('team:fork', (_e, sessionId: string) => fork(sessionId))
   ipcMain.handle('team:brief', (_e, sessionId: string) => brief(sessionId))
+  ipcMain.on('team:typing', (_e, sessionId: string, text: string) => typing(sessionId, text))
 }
 
 export function closeTeams(): void {

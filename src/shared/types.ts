@@ -281,6 +281,11 @@ export interface LoomSettings {
    * to Claude Code's own background commands, which it stops after two hours at most. On unless false.
    */
   loomServers?: boolean
+  /**
+   * Whether teammates following a chat see what is typed in its message box before it is sent.
+   * On unless false.
+   */
+  teamTyping?: boolean
   /** The last version whose What's new was shown (or skipped, on a first install) */
   lastSeenVersion?: string
   notifyWhenDone: boolean

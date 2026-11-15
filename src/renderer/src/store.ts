@@ -303,6 +303,8 @@ interface Store extends PersistedState {
   /** Histories being copied from a teammate, by chat */
   teamSync: Record<string, TeamSync>
   refreshTeamKeys: () => Promise<void>
+  /** What the teammate writing in a followed chat has typed and not sent yet, by chat */
+  teamTyping: Record<string, string>
   /** Shares a project with a team, or stops; says what the teammates still have to do for its chats to show */
   shareProject: (teamId: string, path: string, on: boolean) => Promise<void>
   /** Copies a teammate's chat to this PC, opens it in a tab and follows it as it grows */
@@ -493,6 +495,16 @@ export const MAX_BRIEFS = 4
 /** The chats the last few messages brought along, by message: Stop gives them back with a message it takes back. */
 const sentContext = new Map<string, ChatContextText[]>()
 
+/** Forgets what a teammate was typing in a chat. */
+function clearTyping(sessionId: string): void {
+  useStore.setState((s) => {
+    if (!(sessionId in s.teamTyping)) return s
+    const teamTyping = { ...s.teamTyping }
+    delete teamTyping[sessionId]
+    return { teamTyping }
+  })
+}
+
 /** When each followed chat last heard from its writer as it happened */
 const teamLiveAt = new Map<string, number>()
 const teamReloads = new Map<string, ReturnType<typeof setTimeout>>()
@@ -651,6 +663,7 @@ export const useStore = create<Store>((set, get) => {
     team: null,
     teamKeys: {},
     teamSync: {},
+    teamTyping: {},
     history: [],
     quickOpen: false,
     recordingKeys: false,
@@ -839,7 +852,13 @@ export const useStore = create<Store>((set, get) => {
         const tab = followerTab(sessionId)
         if (!tab) return
         teamLiveAt.set(sessionId, Date.now())
+        // Their message is sent: what they were typing is in the chat now.
+        if (event.type === 'items' && event.items.some((it) => it.kind === 'user')) clearTyping(sessionId)
         get().handleChatEvent(tab.id, event)
+      })
+      window.loom.onTeamTyping((sessionId, text) => {
+        if (!text) return clearTyping(sessionId)
+        set((s) => ({ teamTyping: { ...s.teamTyping, [sessionId]: text } }))
       })
       // A teammate shares a project this PC has too: offered once, where it can be taken up.
       window.loom.onTeamOffer((offer) => {

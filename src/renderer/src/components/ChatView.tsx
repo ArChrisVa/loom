@@ -142,23 +142,42 @@ function Working({ since, what = 'Claude is working' }: { since?: number; what?:
  * In place of the message box, in a chat a teammate writes in: who that is, and the two ways to
  * carry on from it. Continue here asks them to pass the chat on, so Claude works on this PC.
  */
-function FollowBar({ tabId, writer, online }: { tabId: string; writer: string; online: boolean }): ReactNode {
+function FollowBar({ tabId, sessionId, writer, online }: { tabId: string; sessionId: string | null; writer: string; online: boolean }): ReactNode {
   const s = useStore.getState()
+  // What they have typed and not sent yet, as their message box has it.
+  const typing = useStore((st) => (sessionId && online ? st.teamTyping[sessionId] : undefined))
+  const draft = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    // A long message keeps its newest lines in view.
+    if (draft.current) draft.current.scrollTop = draft.current.scrollHeight
+  }, [typing])
   return (
-    <div className="follow-bar" role="status">
-      <MemberMark name={writer} online={online} />
-      <div className="follow-text">
-        <span className="follow-who">{online ? `${writer} is writing in this chat` : `${writer} is offline`}</span>
-        <span className="follow-note">
-          {online ? 'You see it as it happens. Continue here to have Claude work in it on this PC.' : 'This is the copy on this PC. Take a copy to carry on from it yourself.'}
-        </span>
+    <div className="follow">
+      {typing ? (
+        <div className="follow-draft">
+          <span className="follow-draft-who">
+            <MemberMark name={writer} online /> {writer} is typing
+          </span>
+          <p ref={draft} className="follow-draft-text selectable">
+            {typing}
+          </p>
+        </div>
+      ) : null}
+      <div className="follow-bar" role="status">
+        <MemberMark name={writer} online={online} />
+        <div className="follow-text">
+          <span className="follow-who">{online ? `${writer} is writing in this chat` : `${writer} is offline`}</span>
+          <span className="follow-note">
+            {online ? 'You see it as it happens. Continue here to have Claude work in it on this PC.' : 'This is the copy on this PC. Take a copy to carry on from it yourself.'}
+          </span>
+        </div>
+        <button className="btn" onClick={() => void s.copyTeamChat(tabId)}>
+          Take a copy
+        </button>
+        <button className="btn primary" disabled={!online} title={online ? undefined : `${writer} has to be online to pass the chat on`} onClick={() => void s.takeOverChat(tabId)}>
+          Continue here
+        </button>
       </div>
-      <button className="btn" onClick={() => void s.copyTeamChat(tabId)}>
-        Take a copy
-      </button>
-      <button className="btn primary" disabled={!online} title={online ? undefined : `${writer} has to be online to pass the chat on`} onClick={() => void s.takeOverChat(tabId)}>
-        Continue here
-      </button>
     </div>
   )
 }
@@ -609,7 +628,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             <ArrowDown /> Latest
           </button>
         ) : null}
-        {following ? <FollowBar tabId={tab.id} writer={role.writerName} online={role.online} /> : <Composer tab={tab} focusKey={focusKey} />}
+        {following ? <FollowBar tabId={tab.id} sessionId={tab.sessionId} writer={role.writerName} online={role.online} /> : <Composer tab={tab} focusKey={focusKey} />}
       </div>
     </div>
   )

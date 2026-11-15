@@ -212,6 +212,24 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   useEffect(() => setCmdDismissed(false), [text])
 
+  // A chat teammates can open: those following it see what is typed here, a moment behind.
+  const shared = useStore((st) => {
+    const key = tab.projectId ? st.teamKeys[tab.projectId] : null
+    return !!tab.sessionId && !!key && !!st.team?.teams.some((t) => t.projects.includes(key)) && !st.team.private.includes(tab.sessionId)
+  })
+  useEffect(() => {
+    const id = tab.sessionId
+    if (!shared || !id) return
+    const t = setTimeout(() => window.loom.teamTyping(id, text), 250)
+    return () => clearTimeout(t)
+  }, [text, shared, tab.sessionId])
+  useEffect(() => {
+    const id = tab.sessionId
+    if (!shared || !id) return
+    // The message box is gone (the tab closed, the chat passed on): nothing is being typed.
+    return () => window.loom.teamTyping(id, '')
+  }, [shared, tab.sessionId])
+
   const query = text.match(/^\/(\S*)$/)?.[1] ?? null
   // Grouped by where they come from; within a group, names starting with what you typed first,
   // then names containing it, then (from three letters on) descriptions mentioning it.

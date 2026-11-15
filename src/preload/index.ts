@@ -319,6 +319,8 @@ const api = {
   /** Asks whoever writes in a chat to pass it on: this PC writes in it from then on */
   teamTake: (sessionId: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('team:take', sessionId),
   teamFork: (sessionId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> => ipcRenderer.invoke('team:fork', sessionId),
+  /** What is in a chat's message box right now, for the teammates following the chat */
+  teamTyping: (sessionId: string, text: string): void => ipcRenderer.send('team:typing', sessionId, text),
   /** Notes on a chat (a teammate's is copied here first), for another chat to take in as background */
   teamBrief: (sessionId: string): Promise<{ ok: boolean; text?: string; error?: string }> => ipcRenderer.invoke('team:brief', sessionId),
   onTeamState: (cb: (state: TeamsState) => void): (() => void) => {
@@ -336,6 +338,12 @@ const api = {
     const listener = (_e: unknown, sessionId: string, event: ChatEvent): void => cb(sessionId, event)
     ipcRenderer.on('team:live', listener)
     return () => ipcRenderer.removeListener('team:live', listener)
+  },
+  /** What the teammate writing in a followed chat has typed and not sent yet */
+  onTeamTyping: (cb: (sessionId: string, text: string) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string, text: string): void => cb(sessionId, text)
+    ipcRenderer.on('team:typing', listener)
+    return () => ipcRenderer.removeListener('team:typing', listener)
   },
   /** A teammate shares projects this PC has and does not share yet */
   onTeamOffer: (cb: (offer: TeamOffer) => void): (() => void) => {

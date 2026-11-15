@@ -312,6 +312,7 @@ function TeamBlock({ team }: { team: TeamStatus }): ReactNode {
  */
 export function TeamSettings(): ReactNode {
   const team = useStore((s) => s.team)
+  const typingOn = useStore((s) => s.settings.teamTyping !== false)
   const [name, setName] = useState('')
   const [teamName, setTeamName] = useState('')
   const [link, setLink] = useState('')
@@ -353,6 +354,21 @@ export function TeamSettings(): ReactNode {
           />
         </div>
       </div>
+
+      {team.teams.length ? (
+        <div className="set-row">
+          <div className="set-text">
+            <div className="set-title">What you type</div>
+            <div className="set-hint">A teammate who has one of your chats open sees your message taking shape in its message box, before you send it.</div>
+          </div>
+          <div className="set-control">
+            <label className="check-row">
+              <input type="checkbox" checked={typingOn} onChange={(e) => useStore.getState().set({ settings: { ...useStore.getState().settings, teamTyping: e.target.checked } })} />
+              <span>Show what I am typing</span>
+            </label>
+          </div>
+        </div>
+      ) : null}
 
       {team.teams.map((t) => (
         <TeamBlock key={t.id} team={t} />

@@ -80,6 +80,8 @@ export type TeamMsg =
   | { t: 'unfollow'; sessionId: string }
   /** What is happening in a chat right now, for the members following it */
   | { t: 'live'; sessionId: string; ev: ChatEvent }
+  /** What I have typed in a chat's message box and not sent yet, for the members following it; empty when the box is */
+  | { t: 'typing'; sessionId: string; text: string }
   /** Let me write in this chat */
   | { t: 'pen-ask'; sessionId: string }
   /** It is yours: its history has this many lines */
