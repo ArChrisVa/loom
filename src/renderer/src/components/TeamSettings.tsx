@@ -5,11 +5,15 @@ import type { Project } from '@shared/types'
 import { namesOf, sharersOf, useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
-/** A member, as a small tile with their initial: beside their chats, in the list of members. */
+/**
+ * A member, as a round mark with their initial: beside their chats, in the list of members. Round,
+ * where a project's icon is a square, so a person is never taken for a project; a green dot on
+ * its rim says they are online right now.
+ */
 export function MemberMark({ name, online }: { name: string; online?: boolean }): ReactNode {
   return (
-    <span className={`member-mark${online === false ? ' is-away' : ''}`} aria-hidden="true">
-      {(name.trim()[0] ?? '?').toUpperCase()}
+    <span className={`member-mark${online === false ? ' is-away' : online ? ' is-online' : ''}`} aria-hidden="true">
+      {(Array.from(name.trim())[0] ?? '?').toUpperCase()}
     </span>
   )
 }

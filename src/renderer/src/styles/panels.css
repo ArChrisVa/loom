@@ -2663,6 +2663,12 @@
 }
 
 /* ---------- Settings, Team: the projects a team shares ---------- */
+.member-row .member-mark {
+  width: 20px;
+  height: 20px;
+  --mark-ground: var(--bg);
+}
+
 .share-list {
   display: flex;
   flex-direction: column;

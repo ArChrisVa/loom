@@ -3,9 +3,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import type { Tab } from '@shared/types'
 import { inFileRow, paneOfTab } from '../lib/layout'
 import { keysOf } from '../lib/keys'
-import { chatWorking, useStore, type MenuItem } from '../store'
+import { chatWorking, teamRole, useStore, type MenuItem } from '../store'
 import { LayoutButton } from './LayoutMenu'
 import { ProjectMark } from './ProjectMark'
+import { MemberMark } from './TeamSettings'
 import mark from '../assets/brand/loom-mark.webp'
 import mark2x from '../assets/brand/loom-mark@2x.webp'
 
@@ -101,6 +102,9 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
   }, [active])
 
   const running = chatWorking(chat)
+  // A chat a teammate writes in says whose it is, on its tab too.
+  const role = tab.kind === 'chat' ? teamRole(s.team, tab.sessionId) : null
+  const writer = role && !role.mine ? role : null
   const sameRow = s.tabs.filter((t) => inFileRow(t) === inFileRow(tab))
   const rowIndex = sameRow.findIndex((t) => t.id === tab.id)
   const waiting = chat && chat.permissions.length > 0
@@ -233,7 +237,14 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
           }}
         />
       ) : (
-        <span className="tab-title">{tab.title}</span>
+        <>
+          {writer ? (
+            <span className="tab-writer" title={`${writer.writerName} writes in this chat${writer.online ? '' : ', and is offline'}`}>
+              <MemberMark name={writer.writerName} online={writer.online} />
+            </span>
+          ) : null}
+          <span className="tab-title">{tab.title}</span>
+        </>
       )}
       <span className="tab-end">
         {waiting ? <span className="dot dot-warn" title="Waiting for your approval" /> : null}

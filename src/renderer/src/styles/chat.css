@@ -2521,9 +2521,8 @@
 }
 
 .follow-bar .member-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
+  width: 24px;
+  height: 24px;
   font-size: 12px;
 }
 
@@ -2661,4 +2660,9 @@
   color: var(--text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The dot of someone online, on the follow bar's own ground */
+.follow-bar .member-mark {
+  --mark-ground: var(--bg-raised);
 }
