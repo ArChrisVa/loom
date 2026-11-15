@@ -2117,3 +2117,7 @@ button.row:disabled {
   font-size: 13px;
   font-weight: 500;
 }
+/* What a page hides until its script has looked at the address stays hidden, whatever it is drawn as */
+.page [hidden] {
+  display: none !important;
+}

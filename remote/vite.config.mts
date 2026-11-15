@@ -19,10 +19,12 @@ export default defineConfig({
     outDir: resolve(root, 'remote/dist'),
     emptyOutDir: true,
     target: 'es2022',
-    // Two pages: the app, and the "not found" page the Worker serves for any other address.
+    // Three pages: the app, the page an invitation to a team opens (at /team), and the "not found"
+    // page the Worker serves for any other address.
     rollupOptions: {
       input: {
         index: resolve(root, 'remote/app/index.html'),
+        team: resolve(root, 'remote/app/team/index.html'),
         404: resolve(root, 'remote/app/404.html')
       }
     }

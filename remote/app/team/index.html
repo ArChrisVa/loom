@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0c12" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="description" content="An invitation to a team in Loom. Paste the link in Loom on your PC to join." />
+    <link rel="icon" href="/icon.png" type="image/png" />
+    <title>Join a team | Loom</title>
+  </head>
+  <body>
+    <!-- Where an invitation to a team lands when it is opened in a browser: the link belongs in Loom,
+         so the page says where to paste it. The same header and footer as the page for linking a
+         phone (LinkPage.tsx) and the "not found" page: keep them alike. -->
+    <div class="page">
+      <a class="skip" href="#main">Skip to content</a>
+      <header class="top">
+        <div class="top-inner">
+          <a class="home" href="https://loom.baby" aria-label="Loom, the website">
+            <img class="wordmark" src="../../../src/renderer/src/assets/brand/loom-wordmark@2x.webp" width="114" height="32" alt="Loom" />
+          </a>
+          <a class="btn small" href="https://loom.baby">About Loom</a>
+        </div>
+      </header>
+      <main id="main" tabindex="-1">
+        <div class="hero">
+          <h1>Join a team in Loom</h1>
+          <p class="lede" id="lede">
+            This link is an invitation to a team. It works in Loom on your PC, not in the browser: copy it, and paste it there.
+          </p>
+          <p class="alert" id="none" hidden>
+            This address has no invitation in it. Ask your teammate for a new link: in Loom, under Settings, Team, Invite someone.
+          </p>
+          <p class="actions">
+            <button class="btn primary" id="copy" type="button" hidden>Copy the link</button>
+            <a class="btn" href="https://github.com/PixFrixSystems/loom/releases/latest">Download Loom for Windows</a>
+          </p>
+        </div>
+        <section class="pane" aria-labelledby="how-title">
+          <div class="pane-inner">
+            <h2 id="how-title">How to join</h2>
+            <!-- Without list markers Safari stops calling it a list, so it is named one -->
+            <ol class="steps" role="list">
+              <li><span>Open Loom on your PC.</span></li>
+              <li><span>Go to Settings, then Team.</span></li>
+              <li><span>Paste the link under Join a team, and choose Join.</span></li>
+              <li><span>Your teammate sees four digits, and so do you. When they match, they let you in.</span></li>
+            </ol>
+            <p class="notice">
+              An invitation is for one person and stops working after 15 minutes. What a team shares goes from PC to PC, sealed with a key that only
+              its members hold. <a href="https://loom.baby">More about Loom</a>
+            </p>
+          </div>
+        </section>
+      </main>
+      <footer class="site-foot">
+        <div class="site-foot-inner">
+          <div class="site-foot-top">
+            <a class="home" href="https://loom.baby" aria-label="Loom, the website">
+              <img class="wordmark" src="../../../src/renderer/src/assets/brand/loom-wordmark@2x.webp" width="114" height="32" alt="Loom" loading="lazy" />
+            </a>
+            <nav class="site-foot-links" aria-label="Footer">
+              <a href="https://github.com/PixFrixSystems/loom/releases/latest">Download for Windows</a>
+              <a href="https://github.com/PixFrixSystems/loom" target="_blank" rel="noopener">Source on GitHub</a>
+              <a href="https://loom.baby/privacy/">Privacy</a>
+            </nav>
+          </div>
+          <div class="site-foot-bottom">
+            <p class="site-foot-legal">
+              Loom is an independent project. It is not made by or affiliated with Anthropic. Claude and Claude Code are trademarks of Anthropic.
+            </p>
+            <p class="site-foot-credit">Created by <a href="https://pixfrix.gr/" target="_blank" rel="noopener">PixFrix.gr</a></p>
+          </div>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="../team.ts"></script>
+  </body>
+</html>
