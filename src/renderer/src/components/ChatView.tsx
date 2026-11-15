@@ -1,8 +1,8 @@
-import { ArrowDown, ChevronDown, ChevronUp, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-react'
+import { ArrowDown, ChevronDown, ChevronUp, FolderOpen, LoaderCircle, SquareTerminal, Users } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentTask, ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
-import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
+import { EMPTY_CHAT, modelName, POPOUT_TAB, teamRole, useLive, useStore } from '../store'
 import { AgentsButton, AgentTasks } from './AgentTasks'
 import { ChatItemView, ChatTabContext, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
 import { Composer, composers } from './Composer'
@@ -10,6 +10,7 @@ import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
 import { ProjectMark } from './ProjectMark'
 import { RunControl } from './Servers'
+import { MemberMark } from './TeamSettings'
 
 const PAGE = 200
 /** The pinned band's height: a message of yours ending above this line is out of view, under the band. */
@@ -137,8 +138,40 @@ function Working({ since, what = 'Claude is working' }: { since?: number; what?:
   )
 }
 
+/**
+ * In place of the message box, in a chat a teammate writes in: who that is, and the two ways to
+ * carry on from it. Continue here asks them to pass the chat on, so Claude works on this PC.
+ */
+function FollowBar({ tabId, writer, online }: { tabId: string; writer: string; online: boolean }): ReactNode {
+  const s = useStore.getState()
+  return (
+    <div className="follow-bar" role="status">
+      <MemberMark name={writer} online={online} />
+      <div className="follow-text">
+        <span className="follow-who">{online ? `${writer} is writing in this chat` : `${writer} is offline`}</span>
+        <span className="follow-note">
+          {online ? 'You see it as it happens. Continue here to have Claude work in it on this PC.' : 'This is the copy on this PC. Take a copy to carry on from it yourself.'}
+        </span>
+      </div>
+      <button className="btn" onClick={() => void s.copyTeamChat(tabId)}>
+        Take a copy
+      </button>
+      <button className="btn primary" disabled={!online} title={online ? undefined : `${writer} has to be online to pass the chat on`} onClick={() => void s.takeOverChat(tabId)}>
+        Continue here
+      </button>
+    </div>
+  )
+}
+
 export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTab; active: boolean; visible?: boolean }): ReactNode {
   const s = useStore.getState()
+  const team = useStore((st) => st.team)
+  const teamKey = useStore((st) => (tab.projectId ? st.teamKeys[tab.projectId] : null))
+  // A chat of a team: this PC writes in it, or follows the teammate who does.
+  const role = teamRole(team, tab.sessionId)
+  const following = !!role && !role.mine
+  // Mine, in a project a team shares, and not kept private: teammates can open it.
+  const sharedWith = !following && tab.sessionId && teamKey && !team?.private.includes(tab.sessionId) ? team?.teams.find((t) => t.projects.includes(teamKey)) : undefined
   const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
   const project = useStore((st) => st.projects.find((p) => p.id === tab.projectId))
   const knownModels = useStore((st) => st.knownModels)
@@ -429,6 +462,15 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
           {tab.title}
         </span>
         {where ? <span className="chat-head-path">{where}</span> : null}
+        {following ? (
+          <span className="chat-head-team" title={`A chat of ${role.team.name}. ${role.writerName} writes in it.`}>
+            <Users /> {role.writerName}
+          </span>
+        ) : sharedWith ? (
+          <span className="chat-head-team" title={`${sharedWith.name} can open this chat. To keep it to yourself, right-click it in the sidebar and choose Keep private from the team.`}>
+            <Users /> {sharedWith.name}
+          </span>
+        ) : null}
         <span className="chat-head-spacer" />
         {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, knownModels)}</span> : null}
         <AgentsButton tabId={tab.id} tasks={chat.tasks} />
@@ -567,7 +609,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             <ArrowDown /> Latest
           </button>
         ) : null}
-        <Composer tab={tab} focusKey={focusKey} />
+        {following ? <FollowBar tabId={tab.id} writer={role.writerName} online={role.online} /> : <Composer tab={tab} focusKey={focusKey} />}
       </div>
     </div>
   )

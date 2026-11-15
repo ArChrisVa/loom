@@ -79,6 +79,7 @@ import { mediaInfo, registerMediaScheme, serveMedia } from './media'
 import { closeAllPopouts, setupPopouts } from './popouts'
 import { listTrash, purgeTrash, restoreChat, trashChat } from './chatTrash'
 import { closeRemote, setupRemote } from './remote'
+import { closeTeams, setupTeams } from './team'
 import { githubSign, serviceAccount, setupAccounts } from './accounts'
 import { cancelLogin, loginState, startLogin, submitLoginCode } from './login'
 import { emptyState, flushBounds, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
@@ -702,6 +703,7 @@ app.whenReady().then(() => {
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
   setupRemote({ main: () => win })
+  setupTeams({ projects: () => state.projects.map((p) => ({ id: p.id, name: p.name, path: p.path })) })
   setupAccounts({ projects: () => state.projects.map((p) => p.path) })
   setupUpdates({ confirm: () => confirmLoss('Restarting', 'Restart now', 'Later') })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
@@ -740,6 +742,7 @@ app.on('before-quit', (e) => {
       killAllTunnels()
       cancelLogin()
       closeRemote()
+      closeTeams()
     } catch (err) {
       console.error('[quit]', err)
     } finally {

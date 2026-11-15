@@ -2194,3 +2194,49 @@ body.is-resizing webview {
 .project-row:focus-within .git-mark-text {
   display: none;
 }
+
+/* ---------- Teams: a member's mark, and teammates' chats in the sidebar ---------- */
+/* A member, by their initial: a small glass tile, lavender while they are online */
+.member-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(196, 194, 252, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(196, 194, 252, 0.28);
+  color: var(--light);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.member-mark.is-away {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-3);
+}
+
+.team-chats {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.team-label {
+  padding: 2px 6px 3px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* A history being copied: the row fills from the left as it arrives */
+.team-row {
+  position: relative;
+}
+
+.team-row.is-copying {
+  background: linear-gradient(to right, rgba(196, 194, 252, 0.13) var(--fill, 0%), rgba(255, 255, 255, 0.04) var(--fill, 0%));
+  color: var(--text);
+}

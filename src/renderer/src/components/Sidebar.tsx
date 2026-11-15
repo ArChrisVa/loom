@@ -13,8 +13,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
+import type { TeamChatEntry } from '@shared/team'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
-import { chatWorking, useStore, type MenuItem } from '../store'
+import { chatWorking, teamRole, useStore, type MenuItem } from '../store'
+import { MemberMark } from './TeamSettings'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
 
@@ -109,8 +111,59 @@ function ActivityMark({ activity }: { activity: Activity }): ReactNode {
   return null
 }
 
+/** How much of a history has arrived, the short way: 5.2 MB of 174.9 MB. */
+function megabytes(n: number): string {
+  return `${(n / 1048576).toFixed(1)} MB`
+}
+
+/**
+ * A chat a teammate writes in, not opened here yet. A click copies its history to this PC, then
+ * opens it and follows it as it grows.
+ */
+function TeamChatRow({ chat }: { chat: TeamChatEntry }): ReactNode {
+  const sync = useStore((s) => s.teamSync[chat.sessionId])
+  const copying = !!sync && !sync.done
+  const pct = copying && sync.total ? Math.min(100, Math.round((sync.got / sync.total) * 100)) : 0
+  const menu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    useStore.getState().showMenu(e, [
+      { label: 'Open', onSelect: () => void useStore.getState().openTeamChat(chat) },
+      { label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(chat.sessionId) }
+    ])
+  }
+  return (
+    <button
+      className={`chat-row team-row${copying ? ' is-copying' : ''}`}
+      data-team-chat={chat.sessionId}
+      title={
+        copying
+          ? `Copying from ${chat.writerName}: ${pct}% (${megabytes(sync.got)} of ${megabytes(sync.total)})`
+          : `${chat.title}\n${chat.writerName} writes in it${chat.online ? '' : ', and is offline'}${chat.repo?.branch ? `\nOn ${chat.repo.branch}${chat.repo.changes ? `, ${chat.repo.changes} not committed` : ''}` : ''}`
+      }
+      style={copying ? { ['--fill' as string]: `${pct}%` } : undefined}
+      onClick={() => void useStore.getState().openTeamChat(chat)}
+      onContextMenu={menu}
+    >
+      <MemberMark name={chat.writerName} online={chat.online} />
+      <span className="chat-row-title">{chat.title}</span>
+      {copying ? (
+        <span className="chat-row-time">{pct}%</span>
+      ) : chat.status === 'working' ? (
+        <span className="live-dot" role="img" aria-label="Claude is working" title={`Claude is working for ${chat.writerName}`} />
+      ) : chat.status === 'waiting' ? (
+        <span className="dot dot-warn" title={`Waiting for ${chat.writerName}'s answer`} />
+      ) : (
+        <span className="chat-row-time">{timeAgo(chat.lastAt)}</span>
+      )}
+    </button>
+  )
+}
+
 function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }): ReactNode {
   const activeTabId = useStore((s) => s.activeTabId)
+  const team = useStore((s) => s.team)
+  // A team chat a teammate writes in: marked with who.
+  const role = teamRole(team, tab?.sessionId ?? session?.sessionId)
   const chat = useStore((s) => (tab ? s.chats[tab.id] : undefined))
   const title = tab?.title ?? session?.title ?? 'Chat'
   const active = !!tab && tab.id === activeTabId
@@ -144,11 +197,23 @@ function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }):
       }
     )
     if (id) items.push({ label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(id) })
+    // A chat of mine in a project shared with a team: teammates can open it unless it is kept private.
+    const key = here ? s.teamKeys[here] : null
+    if (id && key && (!role || role.mine) && s.team?.teams.some((t) => t.projects.includes(key))) {
+      const kept = s.team.private.includes(id)
+      items.push({ label: 'Keep private from the team', checked: kept, onSelect: () => void window.loom.teamPrivate(id, !kept) })
+    }
     items.push({ separator: true, label: '' }, { label: 'Move to recycle bin', danger: true, onSelect: () => void s.deleteChat(tab ? { tabId: tab.id } : { session }) })
     useStore.getState().showMenu(e, items)
   }
   return (
-    <button className={`chat-row${active ? ' active' : ''}${tab ? ' is-open' : ''}`} onClick={open} onContextMenu={menu} title={title}>
+    <button
+      className={`chat-row${active ? ' active' : ''}${tab ? ' is-open' : ''}`}
+      onClick={open}
+      onContextMenu={menu}
+      title={role && !role.mine ? `${title}\n${role.writerName} writes in it${role.online ? '' : ', and is offline'}` : title}
+    >
+      {role && !role.mine ? <MemberMark name={role.writerName} online={role.online} /> : null}
       <span className="chat-row-title">{title}</span>
       {activity ? <ActivityMark activity={activity} /> : session && !tab ? <span className="chat-row-time">{timeAgo(session.lastModified)}</span> : null}
     </button>
@@ -163,7 +228,12 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
   const editing = s.editingProjectId === project.id
   const openTabs = s.tabs.filter((t): t is ChatTab => t.kind === 'chat' && t.projectId === project.id)
   const openIds = new Set(openTabs.map((t) => t.sessionId).filter(Boolean))
-  const saved = sessions.filter((x) => !openIds.has(x.sessionId))
+  // Chats teammates write in, for this project (told apart by its git remote): listed below this PC's own.
+  const key = s.teamKeys[project.id]
+  const teamChats = key ? (s.team?.chats ?? []).filter((c) => c.project === key && !openIds.has(c.sessionId)).sort((a, b) => b.lastAt - a.lastAt) : []
+  const fromTeam = new Set(teamChats.map((c) => c.sessionId))
+  const [allTeam, setAllTeam] = useState(false)
+  const saved = sessions.filter((x) => !openIds.has(x.sessionId) && !fromTeam.has(x.sessionId))
   const visibleSaved = showAll ? saved : saved.slice(0, 6)
   const activeProject = s.tabs.find((t) => t.id === s.activeTabId)?.projectId === project.id
 
@@ -226,6 +296,24 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
             }
           }
         ]
+      },
+      {
+        label: 'Share with a team',
+        submenu: s.team?.teams.length
+          ? s.team.teams.map((t) => {
+              const key = s.teamKeys[project.id]
+              const on = !!key && t.projects.includes(key)
+              return {
+                label: key ? t.name : `${t.name} (this project has no git remote)`,
+                checked: on,
+                disabled: !key,
+                onSelect: () =>
+                  void window.loom.teamShare(t.id, project.path, !on).then((r) => {
+                    if (!r.ok) s.showToast(r.error ?? 'That project could not be shared.')
+                  })
+              }
+            })
+          : [{ label: 'Set up a team…', onSelect: () => s.openSettings('team') }]
       },
       { separator: true, label: '' },
       { label: 'Remove from Loom…', danger: true, onSelect: () => void s.requestRemoveProject(project.id) }
@@ -333,10 +421,23 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
               {showAll ? 'Show fewer' : `Show ${saved.length - 6} more`}
             </button>
           ) : null}
-          {!openTabs.length && !saved.length ? (
+          {!openTabs.length && !saved.length && !teamChats.length ? (
             <button className="chat-row more" onClick={() => s.newChat(project.id)}>
               No chats yet. Start one
             </button>
+          ) : null}
+          {teamChats.length ? (
+            <div className="team-chats">
+              <div className="team-label">From the team</div>
+              {(allTeam ? teamChats : teamChats.slice(0, 6)).map((c) => (
+                <TeamChatRow key={c.sessionId} chat={c} />
+              ))}
+              {teamChats.length > 6 ? (
+                <button className="chat-row more" onClick={() => setAllTeam((v) => !v)}>
+                  {allTeam ? 'Show fewer' : `Show ${teamChats.length - 6} more`}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           <div className="project-chat-actions">
             <button className="mini-action" onClick={() => s.newChat(project.id)}>

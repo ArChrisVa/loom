@@ -38,6 +38,7 @@ import {
   type TunnelInfo
 } from '@shared/types'
 import type { RemoteStatus } from '@shared/remote'
+import type { TeamChatEntry, TeamLocal, TeamsState, TeamStatus, TeamSync } from '@shared/team'
 import {
   cleanLayout,
   inFileRow,
@@ -287,6 +288,21 @@ interface Store extends PersistedState {
   showUsage: () => void
   /** Phone access: whether it is on, and the phones linked (main window only) */
   remote: RemoteStatus | null
+  /** Teams: who is in them, the chats teammates share, and which chats here belong to one */
+  team: TeamsState | null
+  /** What a team calls each project here (the address of its git remote), by project id */
+  teamKeys: Record<string, string | null>
+  /** Histories being copied from a teammate, by chat */
+  teamSync: Record<string, TeamSync>
+  refreshTeamKeys: () => Promise<void>
+  /** Copies a teammate's chat to this PC, opens it in a tab and follows it as it grows */
+  openTeamChat: (entry: TeamChatEntry) => Promise<void>
+  /** Asks whoever writes in a chat this PC follows to pass it on, so Claude works in it here */
+  takeOverChat: (tabId: string) => Promise<void>
+  /** A copy of a team chat that is this PC's own from there on */
+  copyTeamChat: (tabId: string) => Promise<void>
+  /** Reads a chat's history again, taking the place of what the tab shows */
+  reloadHistory: (tabId: string) => Promise<void>
   history: string[]
   quickOpen: boolean
   /** Settings is waiting for a key combination: shortcuts stand down meanwhile */
@@ -429,7 +445,26 @@ interface Store extends PersistedState {
 }
 
 /** The parts of Settings, in the order they are listed */
-export type SettingsSection = 'accounts' | 'claude' | 'notifications' | 'keyboard' | 'phone' | 'terminal' | 'trash' | 'about'
+export type SettingsSection = 'accounts' | 'claude' | 'notifications' | 'keyboard' | 'phone' | 'team' | 'terminal' | 'trash' | 'about'
+
+/**
+ * A chat's place in a team, when it has one: the team, whether this PC is the one writing in it,
+ * and who is when it isn't.
+ */
+export function teamRole(
+  team: TeamsState | null,
+  sessionId: string | null | undefined
+): { local: TeamLocal; team: TeamStatus; mine: boolean; writerName: string; online: boolean } | null {
+  const l = sessionId ? team?.local[sessionId] : undefined
+  const t = l ? team!.teams.find((x) => x.id === l.teamId) : undefined
+  if (!l || !t) return null
+  const writer = t.members.find((m) => m.id === l.writer)
+  return { local: l, team: t, mine: l.writer === t.me, writerName: writer?.name ?? 'A teammate', online: !!writer?.online }
+}
+
+/** When each followed chat last heard from its writer as it happened */
+const teamLiveAt = new Map<string, number>()
+const teamReloads = new Map<string, ReturnType<typeof setTimeout>>()
 
 /** One thing a toast offers to do, such as Undo */
 export interface ToastAction {
@@ -581,6 +616,9 @@ export const useStore = create<Store>((set, get) => {
     usageOpen: false,
     usageChecking: false,
     remote: null,
+    team: null,
+    teamKeys: {},
+    teamSync: {},
     history: [],
     quickOpen: false,
     recordingKeys: false,
@@ -752,6 +790,44 @@ export const useStore = create<Store>((set, get) => {
       void get().checkSharing()
       window.loom.onUsage((usage) => set({ usage }))
       window.loom.onModels((models) => models.length && set({ knownModels: models }))
+      // Teams. Chats this window shows that a teammate writes in are followed again from the start.
+      const followerTab = (sessionId: string): ChatTab | undefined => {
+        const tab = get().tabs.find((t): t is ChatTab => t.kind === 'chat' && t.sessionId === sessionId)
+        return tab && teamRole(get().team, sessionId)?.mine === false ? tab : undefined
+      }
+      void window.loom.teamState().then((team) => {
+        set({ team })
+        for (const t of get().tabs) if (t.kind === 'chat' && t.sessionId && teamRole(team, t.sessionId)?.mine === false) void window.loom.teamOpen(t.sessionId)
+      })
+      void get().refreshTeamKeys()
+      window.loom.onTeamState((team) => set({ team }))
+      window.loom.onTeamSync((sync) => set((s) => ({ teamSync: { ...s.teamSync, [sync.sessionId]: sync } })))
+      // What the writer's Claude is doing right now shows here as it does there.
+      window.loom.onTeamLive((sessionId, event) => {
+        const tab = followerTab(sessionId)
+        if (!tab) return
+        teamLiveAt.set(sessionId, Date.now())
+        get().handleChatEvent(tab.id, event)
+      })
+      // More of the history arrived. Heard live already, there is nothing to add; otherwise
+      // (this window opened it mid-way, or was away) the tab reads it again.
+      window.loom.onTeamGrew((sessionId) => {
+        const tab = followerTab(sessionId)
+        if (!tab || Date.now() - (teamLiveAt.get(sessionId) ?? 0) < 5000 || teamReloads.has(sessionId)) return
+        teamReloads.set(
+          sessionId,
+          setTimeout(() => {
+            teamReloads.delete(sessionId)
+            void get().reloadHistory(tab.id)
+          }, 800)
+        )
+      })
+      window.loom.onTeamPassed((sessionId, to) => {
+        const tab = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === sessionId)
+        if (!tab) return
+        patchChat(tab.id, () => ({ opened: false, status: 'idle' }))
+        get().showToast(`${to} is writing in ${tab.title} now. You see it as it happens.`)
+      })
       window.loom.onNotifySound((sound) => playTone(sound, get().settings.notifyVolume))
       // Quitting or restarting would lose something: asked in Loom's own dialog.
       window.loom.onAsk((id, req) => {
@@ -908,6 +984,8 @@ export const useStore = create<Store>((set, get) => {
       // Closing the steps counts as done with them: they don't come back by themselves.
       if (tab.kind === 'start') set({ onboarded: true })
       if (tab.kind === 'chat') void window.loom.chatClose(tabId)
+      // A teammate's chat this PC was following: they need not keep sending it.
+      if (tab.kind === 'chat' && tab.sessionId && teamRole(s.team, tab.sessionId)?.mine === false) void window.loom.teamUnfollow(tab.sessionId)
       if (tab.kind === 'terminal') void window.loom.ptyKill(tabId)
       const idx = s.tabs.findIndex((t) => t.id === tabId)
       const tabs = s.tabs.filter((t) => t.id !== tabId)
@@ -1750,6 +1828,72 @@ export const useStore = create<Store>((set, get) => {
       }
     },
 
+    refreshTeamKeys: async () => {
+      const teamKeys = await window.loom.teamKeys().catch(() => ({}) as Record<string, string | null>)
+      set({ teamKeys })
+    },
+    openTeamChat: async (entry) => {
+      if (POPOUT_TAB) return
+      const open = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === entry.sessionId)
+      if (open) return get().activate(open.id)
+      set((s) => ({ teamSync: { ...s.teamSync, [entry.sessionId]: { sessionId: entry.sessionId, got: 0, total: entry.size, done: false } } }))
+      const r = await window.loom.teamOpen(entry.sessionId)
+      set((s) => {
+        const teamSync = { ...s.teamSync }
+        delete teamSync[entry.sessionId]
+        return { teamSync }
+      })
+      if (!r.ok || !r.cwd) return get().showToast(r.error ?? `${entry.title} could not be opened.`)
+      // Only part of it came (its holder went away): it opens with what is here, and says so.
+      if (r.partial) get().showToast(r.partial)
+      await get().refreshSessions(true)
+      get().openSession({ sessionId: entry.sessionId, title: entry.title, cwd: r.cwd, lastModified: entry.lastAt })
+    },
+    takeOverChat: async (tabId) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      const role = tab?.kind === 'chat' ? teamRole(get().team, tab.sessionId) : null
+      if (!tab || tab.kind !== 'chat' || !tab.sessionId || !role || role.mine) return
+      const repo = get().team?.chats.find((c) => c.sessionId === tab.sessionId)?.repo
+      const theirs = repo?.changes
+        ? ` ${role.writerName} has ${repo.changes === 1 ? '1 change' : `${repo.changes} changes`} not committed${repo.branch ? ` on ${repo.branch}` : ''}: what Claude did there that you have not pulled is not in your files.`
+        : repo?.branch
+          ? ` ${role.writerName} is on ${repo.branch}: pull first if Claude changed files there.`
+          : ''
+      const choice = await get().ask({
+        title: `Continue ${tab.title} here?`,
+        body: `${role.writerName} passes it on, and from then on Claude works on this PC: in your copy of the project, on your Claude account.${theirs}`,
+        choices: [
+          { id: 'take', label: 'Continue here', kind: 'primary' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel',
+        focus: 'take'
+      })
+      if (choice !== 'take') return
+      const r = await window.loom.teamTake(tab.sessionId)
+      if (!r.ok) return get().showToast(r.error ?? 'The chat could not be passed on.')
+      await get().reloadHistory(tabId)
+      patchChat(tabId, () => ({ opened: false, status: 'idle', error: undefined }))
+      clearLive(tabId)
+      get().showToast(`You are writing in ${tab.title} now.`)
+    },
+    copyTeamChat: async (tabId) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (!tab || tab.kind !== 'chat' || !tab.sessionId) return
+      const r = await window.loom.teamFork(tab.sessionId)
+      if (!r.ok || !r.sessionId) return get().showToast(r.error ?? 'The copy could not be made.')
+      const title = `${tab.title} (copy)`
+      await window.loom.renameSession(r.sessionId, title).catch(() => undefined)
+      await get().refreshSessions(true)
+      get().openSession({ sessionId: r.sessionId, title, cwd: tab.cwd, lastModified: Date.now() })
+    },
+    reloadHistory: async (tabId) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (!tab || tab.kind !== 'chat' || !tab.sessionId) return
+      const r = await window.loom.loadHistory(tab.sessionId)
+      if (r.error) return
+      patchChat(tabId, (c) => ({ items: r.items, historyTotal: r.total, historyState: 'loaded', context: r.context ?? c.context }))
+    },
     refreshSessions: async (force) => {
       try {
         const sessions = await window.loom.listSessions(force)
@@ -1902,7 +2046,10 @@ export const useStore = create<Store>((set, get) => {
           }
         }
       }
-      const working = pick().filter((t) => t.kind === 'chat' && !get().detached[t.id] && chatBusy(get().chats[t.id]))
+      // A teammate's chat only shown here is theirs to stop: closing its tab stops nothing.
+      const working = pick().filter(
+        (t) => t.kind === 'chat' && !get().detached[t.id] && chatBusy(get().chats[t.id]) && teamRole(get().team, t.sessionId)?.mine !== false
+      )
       if (working.length) {
         const one = working.length === 1
         const choice = await get().ask({

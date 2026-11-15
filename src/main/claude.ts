@@ -481,6 +481,8 @@ class ChatSession {
   }
 
   private emit(event: ChatEvent): void {
+    // A team following this chat hears it as it happens.
+    if (this.sessionId) chatTap?.(this.sessionId, event)
     if (this.held) {
       this.held.push(event)
       return
@@ -571,6 +573,11 @@ class ChatSession {
 
   get query(): Query | null {
     return this.q
+  }
+
+  /** Working, waiting for an answer from the person, or neither */
+  get state(): 'idle' | 'working' | 'waiting' {
+    return this.requests.size ? 'waiting' : this.busy ? 'working' : 'idle'
   }
 
   private async start(): Promise<void> {
@@ -991,6 +998,7 @@ class ChatSession {
   /** `id` is the message's id in the chat, so Stop can name the ones it took back. */
   /** `background`: sent with "Send to background", so Claude hands it to a background agent. */
   async send(text: string, images: ImageAttachment[], id?: string, background = false): Promise<void> {
+    const said = text
     if (background) text = `${text}\n\n${BACKGROUND_ASK}`
     // Watch for the task Claude starts for it (a quick question sent meanwhile doesn't end the watch).
     if (background) this.backgroundTurnTools = new Set()
@@ -1021,6 +1029,11 @@ class ChatSession {
     this.mark = Date.now()
     const uuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? (id as SDKUserMessage['uuid']) : undefined
     this.queue!.push({ type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid })
+    // The window that sent it shows the message itself; a team following the chat is told here.
+    if (this.sessionId && uuid) {
+      const ts = new Date().toISOString()
+      chatTap?.(this.sessionId, { type: 'items', items: [{ kind: 'user', id: uuid, text: said, images: images.length, ts, ...(background ? { background: true } : {}) }] })
+    }
     this.setStatus('running')
   }
 
@@ -1136,6 +1149,32 @@ export function holdChat(tabId: string): void {
 /** Sends a chat's events to another window, when its tab moves there. */
 export function rebindChat(tabId: string, web: WebContents): void {
   chats.get(tabId)?.rebind(web)
+}
+
+/** Told of everything a chat with a history does, as it happens: a team following it listens here. */
+let chatTap: ((sessionId: string, event: ChatEvent) => void) | null = null
+export function tapChats(cb: (sessionId: string, event: ChatEvent) => void): void {
+  chatTap = cb
+}
+
+/** What a chat is doing, by its history's id: null when it isn't open in any tab. */
+export function sessionState(sessionId: string): 'idle' | 'working' | 'waiting' | null {
+  const c = [...chats.values()].find((x) => x.sessionId === sessionId)
+  return c ? c.state : null
+}
+
+/** The model of a chat's last reply, when known */
+export function modelOfSession(sessionId: string): string | undefined {
+  return lastModels.get(sessionId)
+}
+
+/** Ends Claude Code for a chat, by its history's id: its pen is going to a teammate, who writes in it from now on. */
+export function releaseSession(sessionId: string): void {
+  for (const [tabId, c] of chats) {
+    if (c.sessionId !== sessionId) continue
+    c.close()
+    chats.delete(tabId)
+  }
 }
 
 /** Whether a chat is open in some tab, and so has Claude Code holding (or about to write) its history. */
@@ -1284,7 +1323,7 @@ export async function nameChat(firstMessage: string, settings: LoomSettings): Pr
 }
 
 /** Claude Code's folder for a project's chats: the path with everything but letters and digits as "-". */
-function projectDirName(cwd: string): string {
+export function projectDirName(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 

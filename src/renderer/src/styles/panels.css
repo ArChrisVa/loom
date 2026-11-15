@@ -2493,3 +2493,171 @@
   color: var(--text);
   font-weight: 560;
 }
+
+/* ---------- Settings, Team ---------- */
+.set-note {
+  max-width: 56ch;
+  margin: 6px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.team-field {
+  max-width: 260px;
+}
+
+/* One team: its name and state, then its rows */
+.team-block {
+  margin-top: 22px;
+}
+
+.team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 12px;
+  border-top: 1px solid var(--line);
+}
+
+.team-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-state {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.team-state.is-warn {
+  color: var(--warn);
+}
+
+/* Someone waiting to be let in: the one thing here that asks for an answer */
+.team-request {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(240, 195, 138, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(240, 195, 138, 0.28);
+}
+
+.team-request-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.team-request-text strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* The four digits both screens show */
+.team-code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.team-members,
+.team-projects,
+.team-join {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.team-join .inline-field,
+.set-control > .inline-field {
+  width: 100%;
+  margin-top: 0;
+}
+
+.member-list {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+}
+
+.member-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.member-note {
+  flex: 1;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.invite-box {
+  width: 100%;
+}
+
+.invite-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.invite-link {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--bg-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-2);
+  font-family: var(--font-code);
+  font-size: 11.5px;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.join-state > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.join-state.is-failed {
+  color: var(--warn);
+}

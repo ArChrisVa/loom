@@ -1,4 +1,4 @@
-import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSquare, Play, RefreshCw, RotateCcw, Smartphone, SquareTerminal, Trash2, Undo2 } from 'lucide-react'
+import { Bell, BellRing, CircleUser, Info, Keyboard, LogIn, LogOut, MessagesSquare, Play, RefreshCw, RotateCcw, Smartphone, SquareTerminal, Trash2, Undo2, Users } from 'lucide-react'
 import { comboOf, keysOf, SHORTCUTS, whyNot, type KeyChoices, type ShortcutId } from '../lib/keys'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -10,6 +10,7 @@ import { Dropdown } from './Menu'
 import { ServiceAccounts } from './Accounts'
 import { account } from './Onboarding'
 import { PhoneAccess } from './PhoneAccess'
+import { TeamSettings } from './TeamSettings'
 import { SignInPanel } from './SignIn'
 
 /**
@@ -464,6 +465,7 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: 'notifications', label: 'Notifications', icon: <Bell /> },
   { id: 'keyboard', label: 'Keyboard', icon: <Keyboard /> },
   { id: 'phone', label: 'Phone access', icon: <Smartphone /> },
+  { id: 'team', label: 'Team', icon: <Users /> },
   { id: 'terminal', label: 'Terminal', icon: <SquareTerminal /> },
   { id: 'trash', label: 'Recycle bin', icon: <Trash2 /> },
   { id: 'about', label: 'About', icon: <Info /> }
@@ -559,7 +561,7 @@ export function SettingsView(): ReactNode {
   ]
 
   // Phone access shows once Loom knows its state; About once it knows its version.
-  const sections = SECTIONS.filter((x) => (x.id === 'phone' ? !!s.remote : x.id === 'about' ? !!s.update : true))
+  const sections = SECTIONS.filter((x) => (x.id === 'phone' ? !!s.remote : x.id === 'team' ? !!s.team : x.id === 'about' ? !!s.update : true))
   const current = sections.some((x) => x.id === s.settingsSection) ? s.settingsSection : sections[0].id
 
   let page: ReactNode
@@ -690,6 +692,9 @@ export function SettingsView(): ReactNode {
       break
     case 'phone':
       page = <PhoneAccess />
+      break
+    case 'team':
+      page = <TeamSettings />
       break
     case 'terminal':
       page = (

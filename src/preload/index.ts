@@ -41,6 +41,7 @@ import type {
   UsageSnapshot
 } from '@shared/types'
 import type { PhoneAction, RemoteList, RemoteStatus, ToPhone } from '@shared/remote'
+import type { TeamsState, TeamSync } from '@shared/team'
 import type { MediaInfo } from '@shared/media'
 
 const api = {
@@ -295,6 +296,56 @@ const api = {
 
   // Phone access: the settings, then what a window tells linked phones and hears from them.
   remoteStatus: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:status'),
+
+  // ---------- Teams: chats shared between the PCs of people working on the same project ----------
+  teamState: (): Promise<TeamsState> => ipcRenderer.invoke('team:state'),
+  /** What a team calls each project here: its git remote's address, null when it has none */
+  teamKeys: (): Promise<Record<string, string | null>> => ipcRenderer.invoke('team:keys'),
+  teamName: (name: string): Promise<void> => ipcRenderer.invoke('team:name', name),
+  teamCreate: (name: string): Promise<string> => ipcRenderer.invoke('team:create', name),
+  teamInvite: (teamId: string): Promise<void> => ipcRenderer.invoke('team:invite', teamId),
+  teamCancelInvite: (teamId: string): Promise<void> => ipcRenderer.invoke('team:cancelInvite', teamId),
+  teamAnswer: (teamId: string, id: string, allow: boolean): Promise<void> => ipcRenderer.invoke('team:answer', teamId, id, allow),
+  teamJoin: (invitation: string): Promise<void> => ipcRenderer.invoke('team:join', invitation),
+  teamCancelJoin: (): Promise<void> => ipcRenderer.invoke('team:cancelJoin'),
+  teamLeave: (teamId: string): Promise<void> => ipcRenderer.invoke('team:leave', teamId),
+  teamRemove: (teamId: string, memberId: string): Promise<void> => ipcRenderer.invoke('team:remove', teamId, memberId),
+  teamShare: (teamId: string, path: string, on: boolean): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('team:share', teamId, path, on),
+  teamPrivate: (sessionId: string, on: boolean): Promise<void> => ipcRenderer.invoke('team:private', sessionId, on),
+  /** Copies a teammate's chat here and follows it; done when all there is so far has arrived */
+  teamOpen: (sessionId: string): Promise<{ ok: boolean; cwd?: string; error?: string; partial?: string }> => ipcRenderer.invoke('team:open', sessionId),
+  teamUnfollow: (sessionId: string): Promise<void> => ipcRenderer.invoke('team:unfollow', sessionId),
+  /** Asks whoever writes in a chat to pass it on: this PC writes in it from then on */
+  teamTake: (sessionId: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('team:take', sessionId),
+  teamFork: (sessionId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> => ipcRenderer.invoke('team:fork', sessionId),
+  onTeamState: (cb: (state: TeamsState) => void): (() => void) => {
+    const listener = (_e: unknown, state: TeamsState): void => cb(state)
+    ipcRenderer.on('team:state', listener)
+    return () => ipcRenderer.removeListener('team:state', listener)
+  },
+  onTeamSync: (cb: (sync: TeamSync) => void): (() => void) => {
+    const listener = (_e: unknown, sync: TeamSync): void => cb(sync)
+    ipcRenderer.on('team:sync', listener)
+    return () => ipcRenderer.removeListener('team:sync', listener)
+  },
+  /** What is happening right now in a chat this PC follows */
+  onTeamLive: (cb: (sessionId: string, event: ChatEvent) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string, event: ChatEvent): void => cb(sessionId, event)
+    ipcRenderer.on('team:live', listener)
+    return () => ipcRenderer.removeListener('team:live', listener)
+  },
+  /** More of a followed chat's history has arrived */
+  onTeamGrew: (cb: (sessionId: string) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string): void => cb(sessionId)
+    ipcRenderer.on('team:grew', listener)
+    return () => ipcRenderer.removeListener('team:grew', listener)
+  },
+  /** A chat this PC wrote in was passed to a teammate */
+  onTeamPassed: (cb: (sessionId: string, to: string) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string, to: string): void => cb(sessionId, to)
+    ipcRenderer.on('team:passed', listener)
+    return () => ipcRenderer.removeListener('team:passed', listener)
+  },
   remoteEnable: (on: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:enable', on),
   remotePair: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pair'),
   remotePairCancel: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pairCancel'),
