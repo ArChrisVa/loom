@@ -103,12 +103,14 @@ The phone and the PC talk through a small relay, and everything between them is 
 ### A team on the same project
 
 <p align="center">
-  <img src="docs/screenshots/team.png" alt="Two chats side by side: one of your own with its message box, and a teammate's chat that Maria is writing in, with Take a copy and Continue here in place of the message box. The sidebar lists her other chats under From the team">
+  <img src="docs/screenshots/team.png" alt="Two chats side by side: one of your own with its message box, and a teammate's chat that Maria is writing in, with Take a copy and Continue here in place of the message box. The sidebar lists her other chats under the team's name, each with her round mark">
 </p>
 
-People who work on the same repository, each with it on their own PC, can share their chats. Start a team in Settings, Team, and invite someone with a link: they paste it in their Loom, you both see the same four digits, and you let them in. Then tick the projects the team shares. A project is told apart by its git remote, so each person's folder can be anywhere.
+People who work on the same repository, each with it on their own PC, can share their chats. Start a team in Settings, Team, and invite someone with a link: they paste it in their Loom, you both see the same four digits, and you let them in.
 
-Your teammates' chats show in the sidebar under the project, with who writes in each. Open one and its history is copied to your PC and kept up to date, so you read along while their Claude works. One person writes in a chat at a time. **Continue here** asks your teammate to pass it on: from then on Claude works on your PC, in your copy of the project and on your Claude account, with the whole conversation behind it, and your teammate follows instead. **Take a copy** starts a chat of your own from the same history and takes nothing from anyone. To keep a chat to yourself, right-click it and pick Keep private from the team.
+Then each of you shares the project, on your own PC: Share a project in Settings, Team, or right-click the project in the sidebar. Sharing is done on each side, so you see each other's chats once both have the repository in Loom and both have shared it. Until then Loom says who has not yet, and a project a teammate shares is offered to you with one click. A project is told apart by its git remote, so each person's folder can be anywhere; one with no git remote cannot be shared.
+
+Your teammates' chats show in the sidebar under the project, below the team's name, each with a round mark for who writes in it and a green dot while they are online. Open one and its history is copied to your PC and kept up to date, so you read along while their Claude works, and you see their next message taking shape as they type it. One person writes in a chat at a time. **Continue here** asks your teammate to pass it on: from then on Claude works on your PC, in your copy of the project and on your Claude account, with the whole conversation behind it, and your teammate follows instead. Once a chat has changed hands, every message says whose it is, and Claude is told too. **Take a copy** starts a chat of your own from the same history and takes nothing from anyone. To keep a chat to yourself, right-click it and pick Keep private from the team.
 
 A chat can also come along as background. The button next to Attach images in the message box lists the project's other chats, your teammates' and your own. Pick one and Claude writes notes on it (what was asked, found, changed, decided and left unfinished), which go to Claude with your next message. The other chat is left as it is.
 
@@ -126,7 +128,7 @@ You also need:
 
 - **A Claude account that can use Claude Code:** a Claude plan or an Anthropic Console account. Loom has no account of its own and needs no API key.
 - **Claude Code**, Anthropic's command-line tool. If it isn't on your PC, Loom's first-run steps install it for you with Anthropic's own installer.
-- **[Git](https://git-scm.com)**, for the git features.
+- **[Git](https://git-scm.com)**, for the git features and for signing in to GitHub. If it isn't on your PC, Settings, Accounts offers to install it and then to sign in.
 
 <p align="center">
   <img src="docs/screenshots/start.png" alt="The Get started page: sign in to Claude, then add projects picked from the folders already used with Claude Code">
@@ -144,7 +146,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 - **Chat history stays on your PC,** in `~/.claude/projects`, where Claude Code keeps it. Loom's own state (projects, groups, open tabs, settings) is in `%APPDATA%\Loom\loom-state.json`.
 - **GitHub is contacted to check for updates,** and for nothing else.
 - **A linked phone goes through a relay that cannot read it.** What passes between the phone and the PC is sealed with a key only the two hold. The phone's key lives in its browser, where the page can use it but not read it, and on the PC it is encrypted for your Windows account. A linked phone can do what you can in a chat, including approving what Claude asks to run, so remove a lost phone in Settings, Phone access.
-- **A team gets the chats of the projects you share with it, and nothing else.** Their histories go to your teammates' PCs sealed with the team's key, which the relay never has; on each PC the key is encrypted for the Windows account. Nothing is shared until you start or join a team and tick a project, and a chat marked private stays on your PC. A member you remove can no longer connect; what was already copied to their PC stays there. Files are never sent.
+- **A team gets the chats of the projects you share with it, and nothing else.** Their histories go to your teammates' PCs sealed with the team's key, which the relay never has; on each PC the key is encrypted for the Windows account. Nothing is shared until you start or join a team and share a project, and a chat marked private stays on your PC. A teammate who has one of your chats open also sees what you type in its message box before you send it; Settings, Team switches that off. A member you remove can no longer connect; what was already copied to their PC stays there. Files are never sent.
 - **Previews are sandboxed.** A site in a preview pane runs with no access to Loom.
 - **Settings, Accounts shows who this PC is signed in as:** your Claude account, and GitHub, Cloudflare and Vercel as their own tools have them. That is what a push or a deploy from a terminal or from Claude goes out as. Loom reads the names and keeps nothing.
 

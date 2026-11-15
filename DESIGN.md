@@ -46,7 +46,10 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 - File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, then its time and the arrows to the message before and after, which stay at the column's right edge whatever the message's length); the conversation passes beneath it with a blur.
 - What you can do to a running task is said in words, in small pills: Run in background in glass, Stop in the red of the chat's Stop with its filled square. Send to background sits beside the lit Send as a glass key.
-- A teammate is a small glass tile with their initial, lavender while they are online and grey when away. It marks their chats in the sidebar (listed under the project's own, below a faint line, as From the team) and the chat header says who writes in a chat. A history being copied fills its row from the left in lavender.
+- A teammate is a round lavender mark with their initial, never a square: squares are projects. A green dot on its rim says they are online; away, the mark is an empty ring. It marks their chats in the sidebar, on the tab and beside their messages, and the chat header says who writes in a chat. A history being copied fills its row from the left in lavender.
+- A shared project says so in the sidebar on both sides, under its own chats and a faint line: the team's name with a small people glyph, then the teammates' chats, or a line of grey text on where things stand (only you share it so far; a teammate shares it and you do not yet, with the way to share it too).
+- In a chat that has changed hands every message carries, over its bubble, the mark and name of who wrote it, or You.
+- What the writer of a followed chat is typing shows over the follow bar in the outline of a message box, dashed since nothing in it is sent yet.
 - A chat someone else writes in has no message box: a raised bar in its place names the writer and offers the two ways to carry on, Continue here (lit) and Take a copy (glass).
 - Another chat brought into a message waits in the message box as a chip: grey with a turning ring while Claude writes its notes, lavender when ready, amber if the notes could not be written. Under the sent message a small grey line names the chat that came along, as Send to background does.
 - Running servers are green LEDs.
@@ -64,6 +67,8 @@ All drawn in theme: dropdowns with a drawn chevron and a glass list, checkboxes 
 Tooltips are Loom's too, never the system's pale box: dark glass at 12px, under the control and centred on it (over it at the bottom of the window), fading in after half a second of rest, there at once when moving from one control to the next, and gone at once. Every `title` in the app goes through them (`lib/tooltips.ts`).
 
 Settings lists its sections down the left as tabs, one section showing at a time; the chosen one carries the lit wash of the current project in the sidebar, its icon in lavender. Room for the scrollbar is always kept, so nothing shifts between a long section and a short one. On a narrow window the sections become one row that scrolls.
+
+Settings, Team keeps the projects a team shares as a short list, each saying who else shares it (amber when nobody does yet, the one state that needs something done on another PC). Every other project waits behind Share a project: a field to find it by, a list under the sidebar's groups, and the projects with no git remote folded away at its end.
 
 A menu can carry a small grey line that names the items under it (From the team, On this PC), and a menu opened from the bottom of the window grows upwards from its button.
 
