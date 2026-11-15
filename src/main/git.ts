@@ -14,6 +14,36 @@ const ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0',
 delete ENV.ELECTRON_RUN_AS_NODE
 const MAX_DIFF_BYTES = 2 * 1024 * 1024
 
+/** Where Git for Windows puts git: for everyone on the PC, or for one person */
+function gitFolders(): string[] {
+  return [
+    process.env.ProgramFiles && join(process.env.ProgramFiles, 'Git', 'cmd'),
+    process.env['ProgramFiles(x86)'] && join(process.env['ProgramFiles(x86)'], 'Git', 'cmd'),
+    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'cmd')
+  ].filter((d): d is string => !!d)
+}
+
+let gitFound = false
+
+/**
+ * Whether git can be run. A program started before Git was installed does not have it on its
+ * path, so Loom would not find a Git installed while it is open: it is looked for where its
+ * installer puts it, and put on the path of this Loom, for its own git, its terminals and
+ * whatever it starts from then on.
+ */
+export async function ensureGit(): Promise<boolean> {
+  if (gitFound) return true
+  const runs = await new Promise<boolean>((resolve) => execFile('git', ['--version'], { windowsHide: true, timeout: 8000, env: ENV }, (err) => resolve(!err)))
+  if (runs) return (gitFound = true)
+  const dir = gitFolders().find((d) => existsSync(join(d, 'git.exe')))
+  if (!dir) return false
+  for (const env of [process.env as Record<string, string | undefined>, ENV]) {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'Path'
+    if (!(env[key] ?? '').toLowerCase().split(';').includes(dir.toLowerCase())) env[key] = `${dir};${env[key] ?? ''}`
+  }
+  return (gitFound = true)
+}
+
 function git(args: string[], cwd: string, timeout = 15000): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile('git', ['-c', 'core.quotepath=false', ...args], { cwd, timeout, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: ENV }, (err, stdout, stderr) => {

@@ -10,6 +10,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServiceAccount, ServiceId } from '@shared/types'
+import { ensureGit } from './git'
 
 interface Deps {
   /** The folders of Loom's projects: one of them may have a tool installed that the PC as a whole has not */
@@ -56,7 +57,12 @@ async function cliLogins(): Promise<string[] | null> {
   return [...new Set(found)]
 }
 
+/** Git for Windows, which brings the credential manager that signs in to GitHub, through winget */
+const INSTALL_GIT = 'winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements'
+
 async function github(): Promise<ServiceAccount> {
+  // First, so that a Git installed while Loom is open is found by the questions below.
+  const hasGit = await ensureGit()
   const [manager, cli, name, email] = await Promise.all([
     credentialManagerLogins(),
     cliLogins(),
@@ -69,6 +75,9 @@ async function github(): Promise<ServiceAccount> {
   const address = firstLine(email.ok ? email.out : '')
   const detail = author || address ? `Commits are made as ${[author, address ? `<${address}>` : ''].filter(Boolean).join(' ')}.` : undefined
   const via = manager?.length ? "Git's credential manager" : cli?.length ? 'the GitHub CLI' : manager ? "Git's credential manager" : cli ? 'the GitHub CLI' : undefined
+  // Nothing on this PC can sign in to GitHub: Git is missing, or it is a Git without a credential
+  // manager. Git for Windows has both, so installing it is the way in.
+  const needs = manager || cli ? undefined : hasGit ? ('credential-manager' as const) : ('git' as const)
   return {
     id: 'github',
     signedIn: logins.length > 0,
@@ -78,7 +87,8 @@ async function github(): Promise<ServiceAccount> {
     detail,
     // The credential manager signs in and out in windows of its own; the CLI does it in a terminal.
     signIn: manager ? { direct: true } : cli ? { run: 'gh auth login --web' } : undefined,
-    signOut: manager?.length ? { direct: true } : cli?.length ? { run: 'gh auth logout' } : undefined
+    signOut: manager?.length ? { direct: true } : cli?.length ? { run: 'gh auth logout' } : undefined,
+    ...(needs ? { needs, install: { run: INSTALL_GIT } } : {})
   }
 }
 
@@ -213,6 +223,10 @@ export function serviceAccount(id: ServiceId, force = false): Promise<ServiceAcc
   const look = id === 'github' ? github() : id === 'cloudflare' ? cloudflare(deps) : id === 'vercel' ? vercel() : Promise.resolve(null)
   const found = look.catch(() => null)
   last.set(id, { at: Date.now(), found })
+  // Waiting for something to be installed: looked at afresh every time, so it shows the moment it is there.
+  void found.then((a) => {
+    if (a?.install && last.get(id)?.found === found) last.delete(id)
+  })
   return found
 }
 

@@ -704,6 +704,10 @@ export interface ServiceAccount {
   detail?: string
   signIn?: SignStep
   signOut?: SignStep
+  /** What is missing on this PC before anyone can sign in: Git itself, or the part of it that signs in to GitHub */
+  needs?: 'git' | 'credential-manager'
+  /** The command that installs it, run in a terminal where it can be seen */
+  install?: { run: string }
 }
 
 export interface UsageLimit {

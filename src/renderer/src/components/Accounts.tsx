@@ -1,4 +1,4 @@
-import { LogIn, LogOut } from 'lucide-react'
+import { Download, LogIn, LogOut } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { ServiceAccount, ServiceId } from '@shared/types'
 import { useStore } from '../store'
@@ -19,8 +19,16 @@ const SIGNED_OUT: Record<ServiceId, string> = {
   vercel: 'Not signed in on this PC. The Vercel CLI asks you to sign in the first time something is deployed.'
 }
 
+/** What is missing before anyone can sign in, and what the button beside it does about it */
+const NEEDS: Record<NonNullable<ServiceAccount['needs']>, string> = {
+  git: "Git isn't on this PC yet. It brings the sign-in for GitHub with it, and Loom's Git panel needs it too. Install Git puts it in with winget, in a terminal tab; when that has finished, the button here becomes Sign in.",
+  'credential-manager':
+    'Git on this PC has no credential manager, the part that signs in to GitHub. Git for Windows comes with one: Install Git puts it in with winget, in a terminal tab, and the button here then becomes Sign in.'
+}
+
 /** The row's sentence: who, through what, and what it is used for. The name is what the eye should land on. */
 function Status({ a }: { a: ServiceAccount }): ReactNode {
+  if (!a.signedIn && a.needs) return NEEDS[a.needs]
   if (!a.signedIn) return SIGNED_OUT[a.id]
   const also = a.others?.length ? `, and also as ${a.others.join(', ')}` : ''
   const via = a.via ? `, through ${a.via}` : ''
@@ -68,6 +76,15 @@ export function ServiceAccounts(): ReactNode {
     window.addEventListener('focus', again)
     return () => window.removeEventListener('focus', again)
   }, [])
+
+  // Something is being installed in a terminal tab: looked at again every few seconds, so the
+  // button turns into Sign in by itself when it is there.
+  const installing = IDS.some((id) => !!found[id]?.install && !found[id]?.signIn)
+  useEffect(() => {
+    if (!installing) return
+    const t = setInterval(() => void load(), 4000)
+    return () => clearInterval(t)
+  }, [installing])
 
   const s = useStore.getState()
   const signIn = async (a: ServiceAccount): Promise<void> => {
@@ -117,6 +134,11 @@ export function ServiceAccounts(): ReactNode {
                 {a?.signedIn && a.signOut ? (
                   <button className="btn danger" disabled={busy === id} onClick={() => void signOut(a)}>
                     <LogOut /> Sign out
+                  </button>
+                ) : null}
+                {a && !a.signedIn && !a.signIn && a.install ? (
+                  <button className="btn primary" onClick={() => s.runInTerminal('Install Git', a.install!.run)}>
+                    <Download /> Install Git
                   </button>
                 ) : null}
                 {a && !a.signedIn && a.signIn ? (
