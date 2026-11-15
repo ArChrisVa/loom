@@ -878,19 +878,27 @@ export const useStore = create<Store>((set, get) => {
           run: () => (one ? void get().shareProject(offer.teamId, offer.paths[0], true) : get().openSettings('team'))
         })
       })
-      // More of the history arrived. Heard live already, there is nothing to add; otherwise
-      // (this window opened it mid-way, or was away) the tab reads it again.
-      window.loom.onTeamGrew((sessionId) => {
-        const tab = followerTab(sessionId)
-        if (!tab || Date.now() - (teamLiveAt.get(sessionId) ?? 0) < 5000 || teamReloads.has(sessionId)) return
+      // More of the history arrived. While it is also heard live, what arrived is what was just
+      // shown, and reading it again would only make the chat jump; once the live stream has been
+      // quiet for a moment the tab reads the history again, so nothing written meanwhile is missed
+      // (this window opened it mid-way, was away, or the lines came without being heard).
+      const readAgain = (sessionId: string): void => {
+        if (!followerTab(sessionId) || teamReloads.has(sessionId)) return
+        const quiet = Date.now() - (teamLiveAt.get(sessionId) ?? 0)
         teamReloads.set(
           sessionId,
-          setTimeout(() => {
-            teamReloads.delete(sessionId)
-            void get().reloadHistory(tab.id)
-          }, 800)
+          setTimeout(
+            () => {
+              teamReloads.delete(sessionId)
+              if (Date.now() - (teamLiveAt.get(sessionId) ?? 0) < 5000) return readAgain(sessionId)
+              const tab = followerTab(sessionId)
+              if (tab) void get().reloadHistory(tab.id)
+            },
+            quiet < 5000 ? 5200 - quiet : 800
+          )
         )
-      })
+      }
+      window.loom.onTeamGrew(readAgain)
       window.loom.onTeamPassed((sessionId, to) => {
         const tab = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === sessionId)
         if (!tab) return
