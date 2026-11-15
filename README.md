@@ -77,7 +77,7 @@ A tab closed by mistake comes back with Ctrl+Shift+T or Ctrl+Shift+Z, in the pan
 ### Git without leaving the chat
 
 <p align="center">
-  <img src="docs/screenshots/git.png" alt="The Git panel listing two changed files, with a side-by-side diff of styles.css next to the chat that made the change">
+  <img src="docs/screenshots/git.png" alt="The Git panel listing two changed files, with the diff of styles.css next to the chat that made the change">
 </p>
 
 See what changed, read a side-by-side diff, stage or throw away changes (Loom keeps a copy), and commit only the files you select. Write the message yourself or let Claude write it, following the commit rules in your `CLAUDE.md`. Push, pull, switch or start branches and browse recent commits. The sidebar marks which projects are in git and whether anything is waiting to commit, push or pull.
@@ -101,6 +101,10 @@ Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it
 The phone and the PC talk through a small relay, and everything between them is encrypted with a key only the two hold: the relay passes sealed messages along and cannot read them. Phone access is off until you link a phone, each phone can be removed in Settings, and the status bar says when one is connected. The page can be added to the phone's Home Screen; link that copy with the Scan the code button inside it. How it works is written up in [remote/README.md](remote/README.md).
 
 ### A team on the same project
+
+<p align="center">
+  <img src="docs/screenshots/team.png" alt="Two chats side by side: one of your own with its message box, and a teammate's chat that Maria is writing in, with Take a copy and Continue here in place of the message box. The sidebar lists her other chats under From the team">
+</p>
 
 People who work on the same repository, each with it on their own PC, can share their chats. Start a team in Settings, Team, and invite someone with a link: they paste it in their Loom, you both see the same four digits, and you let them in. Then tick the projects the team shares. A project is told apart by its git remote, so each person's folder can be anywhere.
 
