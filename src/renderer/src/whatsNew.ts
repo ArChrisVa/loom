@@ -2,7 +2,7 @@
 // Add an entry for a release with something people should notice; leave out fixes nobody would
 // look for. Newest first. A few short lines each: what it is, and where to find it.
 
-export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media' | 'keys' | 'title' | 'bin' | 'server' | 'move' | 'settings'
+export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media' | 'keys' | 'title' | 'bin' | 'server' | 'move' | 'settings' | 'team' | 'chats' | 'follow'
 
 export interface Highlight {
   icon: HighlightIcon
@@ -16,6 +16,31 @@ export interface ReleaseNotes {
 }
 
 export const RELEASE_NOTES: ReleaseNotes[] = [
+  {
+    version: '0.1.17',
+    highlights: [
+      {
+        icon: 'team',
+        title: 'Teams: share chats with the people on your project',
+        body: 'Settings, Team: start a team, invite someone with a link, and tick the projects you share. Your teammates\' chats show in the sidebar under the project. Open one to read along while their Claude works.'
+      },
+      {
+        icon: 'switch',
+        title: 'Carry on a teammate\'s chat on your PC',
+        body: 'Continue here asks your teammate to pass a chat on: Claude then works in your copy of the project, on your account, with the whole conversation behind it. Take a copy starts your own chat from the same history.'
+      },
+      {
+        icon: 'chats',
+        title: 'Bring another chat along',
+        body: 'The new button next to Attach images lists the project\'s other chats, yours and your teammates\'. Pick one and Claude gets notes on it with your next message: what was asked, found, changed and left unfinished.'
+      },
+      {
+        icon: 'follow',
+        title: 'The chat follows again after you scroll back down',
+        body: 'Scroll up to read, come back to the end, and the chat keeps up with what Claude writes, as it did before you scrolled.'
+      }
+    ]
+  },
   {
     version: '0.1.16',
     highlights: [

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CircleCheck, Cpu, FolderTree, Gauge, Image, Keyboard, Move, PanelTop, Pencil, SendToBack, Server, Settings, Trash2 } from 'lucide-react'
+import { ArrowDownToLine, ArrowRightLeft, CircleCheck, Cpu, FolderTree, Gauge, Image, Keyboard, MessagesSquare, Move, PanelTop, Pencil, SendToBack, Server, Settings, Trash2, Users } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store'
@@ -37,6 +37,12 @@ function Icon({ name }: { name: HighlightIcon }): ReactNode {
       return <Move />
     case 'settings':
       return <Settings />
+    case 'team':
+      return <Users />
+    case 'chats':
+      return <MessagesSquare />
+    case 'follow':
+      return <ArrowDownToLine />
   }
 }
 
