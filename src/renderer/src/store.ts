@@ -1234,6 +1234,8 @@ export const useStore = create<Store>((set, get) => {
         title: session.title.length > 60 ? `${session.title.slice(0, 60)}…` : session.title,
         ...get().chatDefaults()
       })
+      // A copy of a chat a teammate writes in: followed again from here, as when it was first opened.
+      if (teamRole(get().team, session.sessionId)?.mine === false) void window.loom.teamOpen(session.sessionId)
     },
     deleteChat: async (ref) => {
       if (POPOUT_TAB) return
