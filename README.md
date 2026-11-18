@@ -179,7 +179,7 @@ Reloading starts the window over without stopping anything: chats, terminals and
 ## Good to know
 
 - **One chat, one app at a time.** Don't continue the same chat in Loom and somewhere else at once: both write to the same history file.
-- **A team chat changes hands only at rest.** While Claude is working in it, or waiting for an answer, Continue here says so and you try again after. A teammate who is offline cannot pass a chat on: take a copy to carry on from what your PC has.
+- **A team chat changes hands only at rest.** While Claude is working in it, or waiting for an answer, Continue here says so and you try again after. A teammate who is offline cannot pass a chat on: take a copy to carry on from what your PC has. If a handover is cut short (a Loom closed in the middle, a connection dropped), it is finished by itself the next time the two PCs are both online with the chat open.
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
