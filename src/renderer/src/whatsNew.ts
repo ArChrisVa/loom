@@ -17,6 +17,16 @@ export interface ReleaseNotes {
 
 export const RELEASE_NOTES: ReleaseNotes[] = [
   {
+    version: '0.1.19',
+    highlights: [
+      {
+        icon: 'switch',
+        title: 'A shared chat no longer gets stuck between two people',
+        body: 'Continue here could leave a chat where each of you saw the other as the one writing, and neither could type. Passing a chat on now always finishes, and a chat left that way repairs itself once you both have this version and open it.'
+      }
+    ]
+  },
+  {
     version: '0.1.18',
     highlights: [
       {
