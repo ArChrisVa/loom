@@ -158,8 +158,18 @@ const arrivals = new Map<string, Set<(here: boolean) => void>>()
 const wanted = new Map<string, string>()
 /** Chats this PC follows: who it asked for them */
 const following = new Map<string, { teamId: string; member: string }>()
-/** People waiting to hear whether a pen was given */
-const penWaiters = new Map<string, (r: { ok: boolean; lines?: number; reason?: string }) => void>()
+/** How asking for a chat went: it is this PC's now, or why not */
+type PenAnswer = { ok: boolean; reason?: 'busy' | 'gone' | 'quiet' | 'coming'; writer?: string }
+/** Windows waiting to hear whether a chat became this PC's to write in */
+const penWaiters = new Map<string, (r: PenAnswer) => void>()
+/** Chats being passed to this PC: who gives each, how many lines it has there, and which handover of the chat it is */
+const handovers = new Map<string, { teamId: string; from: string; lines: number; turn: number }>()
+/** Chats being given away right now: a second asking waits its turn */
+const giving = new Set<string>()
+/** A member who asked for a chat this PC first has to take up itself: it goes to them as soon as it has */
+const owed = new Map<string, string>()
+/** When each followed chat was last looked for at another member, on being told they write in it now */
+const hopped = new Map<string, number>()
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -376,6 +386,7 @@ function offline(link: Link): void {
 function stalled(sessionId: string): void {
   subscribed.delete(sessionId)
   settle(sessionId, false)
+  penWaiters.get(sessionId)?.({ ok: false, reason: handovers.has(sessionId) ? 'coming' : 'quiet' })
 }
 
 function disconnect(link: Link): void {
@@ -704,7 +715,8 @@ async function held(link: Link, project: string, fresh = false): Promise<{ chats
       size: s.fileSize ?? 0,
       status: sessionState(s.sessionId) ?? 'idle',
       model: modelOfSession(s.sessionId),
-      owner: l?.owner ?? link.cfg.me
+      owner: l?.owner ?? link.cfg.me,
+      ...(l?.turn ? { turn: l.turn } : {})
     })
     if (chats.length >= 60) break
   }
@@ -845,7 +857,32 @@ setInterval(() => {
 /** A member asks for a chat's history from a line on. */
 async function onWant(link: Link, from: string, m: Extract<TeamMsg, { t: 'want' }>): Promise<void> {
   const sessionId = m.sessionId
-  const root = UUID.test(sessionId) && typeof m.ref === 'string' ? await rootOf(link, sessionId) : null
+  if (!UUID.test(sessionId) || typeof m.ref !== 'string') return void post(link, { t: 'nope', sessionId }, from)
+  let root = await rootOf(link, sessionId)
+  if (!root) {
+    const c = link.cfg
+    const l = local[sessionId]
+    // Not this PC's to send. When someone else writes in it, that is said, so it is asked for there.
+    if (!l || l.teamId !== c.id || l.writer !== from) return void post(link, { t: 'nope', sessionId, ...(l && l.teamId === c.id && l.writer !== c.me ? { writer: l.writer } : {}) }, from)
+    // They ask this PC for a chat it takes to be theirs: a handover one of the two never saw the end of.
+    const mine = { turn: l.turn ?? 0, lines: await linesHere(sessionId), id: c.me }
+    const theirs = { turn: m.turn ?? 0, lines: Math.max(0, Math.floor(Number(m.from) || 0)), id: from }
+    if (shouldHold(mine, theirs)) {
+      // This PC's after all.
+      if (theirs.turn > mine.turn) {
+        // It lacks some of the chat, which they have: taken up once that is here. They are told to
+        // ask again (naming this PC as the one to ask), and do when it says it holds the chat.
+        startHandover(link, sessionId, from, theirs.lines, theirs.turn)
+        return void post(link, { t: 'nope', sessionId, writer: c.me }, from)
+      }
+      // It has all of it: taken up now, and what they asked for is sent as its holder sends it.
+      claim(link, sessionId, mine.turn + 1)
+    } else {
+      // Theirs: said again, and what they lack of it is sent.
+      await regive(link, sessionId, from, theirs.turn)
+    }
+    root = await folderOf(l.project)
+  }
   const path = root ? (await transcriptIndex()).get(sessionId) : undefined
   if (!root || !path) return void post(link, { t: 'nope', sessionId }, from)
   const offset = await offsetOfLine(path, Math.max(0, Math.floor(m.from)))
@@ -914,10 +951,27 @@ async function subscribe(sessionId: string): Promise<void> {
   incoming.delete(sessionId)
   // What was already on its way into the file lands before its lines are counted.
   if (before) await before.write.catch(() => undefined)
-  const from = await linesHere(sessionId)
+  let from = await linesHere(sessionId)
+  const l = local[sessionId]
+  if (l && typeof l.given === 'number') {
+    // This PC passed the chat on at that many lines. Anything Claude Code still wrote here afterwards
+    // is not in its new holder's copy: cut off, so the lines that follow are the same on every PC.
+    if (from > l.given) {
+      const root = await folderOf(l.project)
+      const path = root ? join(PROJECTS, projectDirName(root), `${sessionId}.jsonl`) : null
+      if (path) {
+        await fs.truncate(path, await offsetOfLine(path, l.given)).catch(() => undefined)
+        lineCache.delete(path)
+        forgetSession(sessionId)
+        from = l.lines = l.given
+      }
+    }
+    delete l.given
+    saveSoon()
+  }
   // Asked again meanwhile (the chat changed hands, its holder came and went): that asking stands.
   if (wanted.get(sessionId) !== ref) return
-  await post(link, { t: 'want', sessionId, from, follow: true, ref }, member)
+  await post(link, { t: 'want', sessionId, from, follow: true, ref, turn: l?.turn ?? 0 }, member)
 }
 
 async function onData(link: Link, from: string, m: Extract<TeamMsg, { t: 'data' }>): Promise<void> {
@@ -956,6 +1010,8 @@ async function onData(link: Link, from: string, m: Extract<TeamMsg, { t: 'data' 
     lineCache.delete(inc.path)
     settle(m.sessionId, true)
     if (whole.length) toWindows('team:grew', m.sessionId)
+    // The chat is being passed to this PC, and that was the last of it.
+    if (handovers.get(m.sessionId)?.from === from) await tryClaim(m.sessionId, true)
   }
 }
 
@@ -1056,10 +1112,22 @@ async function onMember(link: Link, from: string, m: TeamMsg): Promise<void> {
       }
       for (const chat of m.chats) {
         const l = local[chat.sessionId]
-        // They hold it now (it was passed on while this PC was away): this PC's copy follows theirs.
-        if (l && l.teamId === c.id && l.writer !== from && l.writer !== c.me) {
+        const turn = typeof chat.turn === 'number' ? chat.turn : 0
+        if (l && l.teamId === c.id && l.writer !== c.me) {
+          // They hold it now (it was passed on while this PC was away): this PC's copy follows theirs.
+          if (l.writer !== from || turn > (l.turn ?? 0)) {
+            l.writer = from
+            l.turn = Math.max(l.turn ?? 0, turn)
+            saveSoon()
+          }
+        } else if (l && l.teamId === c.id && turn > (l.turn ?? 0) && sessionState(chat.sessionId) !== 'working') {
+          // Both say they write in it. The later handover is the one that counts, and it is theirs: this PC steps back.
+          releaseSession(chat.sessionId)
           l.writer = from
-          saveSoon()
+          l.turn = turn
+          save()
+          following.set(chat.sessionId, { teamId: c.id, member: from })
+          toWindows('team:passed', chat.sessionId, nameOf(link, from))
         }
         const f = following.get(chat.sessionId)
         if (f && f.teamId === c.id) {
@@ -1080,42 +1148,50 @@ async function onMember(link: Link, from: string, m: TeamMsg): Promise<void> {
       return
     case 'data':
       return onData(link, from, m)
-    case 'nope':
+    case 'nope': {
       subscribed.delete(m.sessionId)
+      // The chat is being passed to this PC by an older Loom, which sends no more of it once it has let go: taken up with what is here.
+      if (handovers.get(m.sessionId)?.from === from) return void (await tryClaim(m.sessionId, true))
+      const l = local[m.sessionId]
+      const f = following.get(m.sessionId)
+      // They are about to hold it themselves, and say so when they do: asked again then.
+      if (m.writer === from) return
+      // They say who writes in it now: followed there. Not again within a few seconds: while a chat
+      // is changing hands neither of the two holds it, and each would send this PC to the other.
+      if (l && l.teamId === c.id && f && typeof m.writer === 'string' && m.writer !== from && m.writer !== c.me && c.members.some((x) => x.id === m.writer)) {
+        if (Date.now() - (hopped.get(m.sessionId) ?? 0) < 5000) return
+        hopped.set(m.sessionId, Date.now())
+        l.writer = m.writer
+        f.member = m.writer
+        saveSoon()
+        void subscribe(m.sessionId)
+        return emit()
+      }
       toWindows('team:sync', { sessionId: m.sessionId, got: 0, total: 0, done: true, error: `${nameOf(link, from)} no longer shares this chat.` } satisfies TeamSync)
       return
+    }
     case 'live':
       if (following.get(m.sessionId)?.member === from) toWindows('team:live', m.sessionId, m.ev)
       return
     case 'typing':
       if (following.get(m.sessionId)?.member === from) toWindows('team:typing', m.sessionId, typeof m.text === 'string' ? m.text.slice(0, TYPING_MOST) : '')
       return
-    case 'pen-ask': {
-      // Only a chat at rest changes hands: Claude is not cut off in the middle of a turn.
-      if (!(await holds(link, m.sessionId))) return void post(link, { t: 'pen-no', sessionId: m.sessionId, reason: 'gone' }, from)
-      const doing = sessionState(m.sessionId)
-      if (doing === 'working' || doing === 'waiting') return void post(link, { t: 'pen-no', sessionId: m.sessionId, reason: 'busy' }, from)
-      const path = (await transcriptIndex()).get(m.sessionId)
-      const project = (await projectOf(link, m.sessionId)) ?? ''
-      if (!path || !project) return void post(link, { t: 'pen-no', sessionId: m.sessionId, reason: 'gone' }, from)
-      // Claude Code lets go of the history before anyone else writes in it.
-      releaseSession(m.sessionId)
-      // Those who followed it here follow its new holder, once that PC says it has it.
-      link.followers.delete(m.sessionId)
-      const lines = await countLines(path)
-      local[m.sessionId] = { teamId: c.id, project, owner: local[m.sessionId]?.owner ?? c.me, writer: from, lines }
-      save()
-      await post(link, { t: 'pen-give', sessionId: m.sessionId, lines }, from)
-      following.set(m.sessionId, { teamId: c.id, member: from })
-      toWindows('team:passed', m.sessionId, nameOf(link, from))
-      void announce(link)
-      return emit()
-    }
-    case 'pen-give':
-      penWaiters.get(m.sessionId)?.({ ok: true, lines: m.lines })
+    case 'pen-ask':
+      // Apart from the messages that follow it: giving a chat away waits for its history to settle.
+      void penAsked(link, from, m).catch((e) => console.error('[team] pen', e))
       return
+    case 'pen-give': {
+      const l = local[m.sessionId]
+      // From the member this PC takes to be writing in it, and only a handover it has not seen yet.
+      if (!l || l.teamId !== c.id || l.writer !== from) return
+      // An older Loom does not count handovers: its word is taken as the next one.
+      const turn = typeof m.turn === 'number' ? m.turn : (l.turn ?? 0) + 1
+      if (turn <= (l.turn ?? 0)) return
+      startHandover(link, m.sessionId, from, Math.max(0, Math.floor(Number(m.lines) || 0)), turn)
+      return
+    }
     case 'pen-no':
-      penWaiters.get(m.sessionId)?.({ ok: false, reason: m.reason })
+      penWaiters.get(m.sessionId)?.({ ok: false, reason: m.reason === 'busy' ? 'busy' : 'gone', ...(typeof m.writer === 'string' ? { writer: m.writer } : {}) })
       return
   }
 }
@@ -1171,6 +1247,155 @@ function authorOf(sessionId: string): ChatAuthor | null {
   const link = l ? links.get(l.teamId) : undefined
   if (!l || !link || l.writer !== link.cfg.me) return null
   return { id: link.cfg.me, name: myName.trim() || nameOf(link, link.cfg.me) }
+}
+
+// ---------- A chat changing hands ----------
+//
+// One member writes in a chat. It passes to another in two steps: its holder lets go and says
+// "it is yours, it has this many lines here" (pen-give), and it becomes the receiver's once those
+// lines are all on their PC. Each handover of a chat has a number one higher than the last, kept
+// on both PCs. If the two ever disagree (a message lost, a Loom closed in the middle), each ends
+// up taking the other to be the writer; the numbers say which of them the last handover gave it
+// to, and it is finished the next time one asks the other for anything about the chat.
+
+/** Waits for a history to stop growing: Claude Code may still be writing its last lines as it lets go. Three seconds at most. */
+async function settled(path: string): Promise<void> {
+  let size = -1
+  for (let i = 0; i < 12; i++) {
+    const now = (await fs.stat(path).catch(() => null))?.size ?? 0
+    if (now === size) return
+    size = now
+    await wait(250)
+  }
+}
+
+/**
+ * Two PCs each take the other to be writing in a chat. Which of them it is: the one the later
+ * handover gave it to (the other knows of a handover this one does not); with none to tell by,
+ * the one with more of the history, then the one whose id comes first. Both work it out alike.
+ */
+function shouldHold(mine: { turn: number; lines: number; id: string }, theirs: { turn: number; lines: number; id: string }): boolean {
+  if (theirs.turn !== mine.turn) return theirs.turn > mine.turn
+  if (theirs.lines !== mine.lines) return mine.lines > theirs.lines
+  return mine.id < theirs.id
+}
+
+/** This PC writes in the chat from now on, by its `turn`-th handover. */
+function claim(link: Link, sessionId: string, turn: number): void {
+  const l = local[sessionId]
+  if (!l) return
+  handovers.delete(sessionId)
+  const f = following.get(sessionId)
+  following.delete(sessionId)
+  subscribed.delete(sessionId)
+  incoming.delete(sessionId)
+  wanted.delete(sessionId)
+  if (f) void post(link, { t: 'unfollow', sessionId }, f.member)
+  l.writer = link.cfg.me
+  l.turn = turn
+  delete l.given
+  save()
+  forgetSession(sessionId)
+  void announce(link)
+  emit()
+  toWindows('team:mine', sessionId)
+  penWaiters.get(sessionId)?.({ ok: true })
+  // Someone asked for it while it was not this PC's to give yet: it goes on to them.
+  const to = owed.get(sessionId)
+  owed.delete(sessionId)
+  if (to && link.online.has(to)) void give(link, sessionId, to).catch((e) => console.error('[team] pen', e))
+}
+
+/** Finishes a handover to this PC once all its giver has of the chat is here. `all`: the giver has no more of it to send. */
+async function tryClaim(sessionId: string, all = false): Promise<boolean> {
+  const h = handovers.get(sessionId)
+  const link = h ? links.get(h.teamId) : undefined
+  if (!h || !link || !local[sessionId]) return false
+  if (!all && (await linesHere(sessionId)) < h.lines) return false
+  if (handovers.get(sessionId) !== h) return false
+  claim(link, sessionId, h.turn)
+  return true
+}
+
+/** A chat is being passed to this PC: it is this PC's as soon as the lines it lacks are here, which are asked for. */
+function startHandover(link: Link, sessionId: string, from: string, lines: number, turn: number): void {
+  handovers.set(sessionId, { teamId: link.cfg.id, from, lines, turn })
+  following.set(sessionId, { teamId: link.cfg.id, member: from })
+  void tryClaim(sessionId).then((done) => {
+    if (done) return
+    subscribed.delete(sessionId)
+    return subscribe(sessionId)
+  })
+}
+
+/** Says again that a chat is the other member's to write in: they never saw the handover through. */
+async function regive(link: Link, sessionId: string, to: string, theirTurn: number): Promise<void> {
+  const l = local[sessionId]
+  if (!l) return
+  // The handover they missed, by its own number; with none on record, a new one both can tell from the last.
+  const turn = Math.max(l.turn ?? 0, theirTurn + 1)
+  if (l.turn !== turn) {
+    l.turn = turn
+    save()
+  }
+  await post(link, { t: 'pen-give', sessionId, lines: await linesHere(sessionId), turn }, to)
+}
+
+/** Passes a chat this PC writes in to a member: Claude Code lets go, and they are told it is theirs. */
+async function give(link: Link, sessionId: string, to: string): Promise<void> {
+  const c = link.cfg
+  const no = (reason: 'busy' | 'gone'): void => void post(link, { t: 'pen-no', sessionId, reason }, to)
+  // Only a chat at rest changes hands: Claude is not cut off in the middle of a turn.
+  const doing = sessionState(sessionId)
+  if (doing === 'working' || doing === 'waiting') return no('busy')
+  const path = (await transcriptIndex()).get(sessionId)
+  const project = (await projectOf(link, sessionId)) ?? ''
+  if (!path || !project) return no('gone')
+  // Claude Code lets go of the history before anyone else writes in it, and finishes what it was writing.
+  releaseSession(sessionId)
+  await settled(path)
+  // The others who followed it here follow its new holder, once that PC says it has it. The one it
+  // goes to stays: the last of it is still on its way to them.
+  const subs = link.followers.get(sessionId)
+  if (subs) for (const id of [...subs.keys()]) if (id !== to) subs.delete(id)
+  lineCache.delete(path)
+  const lines = await countLines(path)
+  const turn = (local[sessionId]?.turn ?? 0) + 1
+  local[sessionId] = { teamId: c.id, project, owner: local[sessionId]?.owner ?? c.me, writer: to, lines, turn, given: lines }
+  save()
+  await post(link, { t: 'pen-give', sessionId, lines, turn }, to)
+  following.set(sessionId, { teamId: c.id, member: to })
+  toWindows('team:passed', sessionId, nameOf(link, to))
+  void announce(link)
+  emit()
+}
+
+/** A member asks to write in a chat. */
+async function penAsked(link: Link, from: string, m: Extract<TeamMsg, { t: 'pen-ask' }>): Promise<void> {
+  const c = link.cfg
+  const sessionId = m.sessionId
+  const no = (reason: 'busy' | 'gone', writer?: string): void => void post(link, { t: 'pen-no', sessionId, reason, ...(writer ? { writer } : {}) }, from)
+  if (!UUID.test(sessionId)) return no('gone')
+  if (giving.has(sessionId)) return no('busy')
+  giving.add(sessionId)
+  try {
+    if (await holds(link, sessionId)) return await give(link, sessionId, from)
+    const l = local[sessionId]
+    // Not this PC's to give. When someone else writes in it, that is said, so they ask there.
+    if (!l || l.teamId !== c.id || l.writer === c.me) return no('gone')
+    if (l.writer !== from) return no('gone', l.writer)
+    // Each takes the other to be writing in it: a handover one of the two never saw the end of.
+    const mine = { turn: l.turn ?? 0, lines: await linesHere(sessionId), id: c.me }
+    const theirs = { turn: m.turn ?? 0, lines: Math.max(0, Math.floor(Number(m.lines) || 0)), id: from }
+    // Theirs already: said again, and they have it.
+    if (!shouldHold(mine, theirs)) return await regive(link, sessionId, from, theirs.turn)
+    // This PC's, by a handover it never finished. It takes the chat up, and then passes it on as asked.
+    owed.set(sessionId, from)
+    if (theirs.turn > mine.turn) startHandover(link, sessionId, from, theirs.lines, theirs.turn)
+    else claim(link, sessionId, mine.turn + 1)
+  } finally {
+    giving.delete(sessionId)
+  }
 }
 
 async function projectOf(link: Link, sessionId: string): Promise<string | null> {
@@ -1237,31 +1462,43 @@ async function take(sessionId: string): Promise<Result> {
   const link = l && links.get(l.teamId)
   if (!l || !link) return { ok: false, error: 'That chat is not shared with a team.' }
   if (l.writer === link.cfg.me) return { ok: true }
-  const holder = l.writer
-  if (!link.online.has(holder)) return { ok: false, error: `${nameOf(link, holder)} is not online, so the chat cannot change hands. Take a copy to carry on from what this PC has.` }
-  const answer = await new Promise<{ ok: boolean; lines?: number; reason?: string }>((resolve) => {
-    const timer = setTimeout(() => resolve({ ok: false, reason: 'quiet' }), 20_000)
-    penWaiters.set(sessionId, (r) => {
-      clearTimeout(timer)
-      resolve(r)
+  // Asked of whoever this PC takes to be writing in it; when they say it is someone else, asked there, once.
+  for (let hop = 0; hop < 2; hop++) {
+    const holder = l.writer
+    if (!link.online.has(holder)) return { ok: false, error: `${nameOf(link, holder)} is not online, so the chat cannot change hands. Take a copy to carry on from what this PC has.` }
+    const answer = await new Promise<PenAnswer>((resolve) => {
+      // It is this PC's once the giver has let go and the last of the chat is here (claim tells the waiter).
+      const timer = setTimeout(() => resolve({ ok: false, reason: handovers.has(sessionId) ? 'coming' : 'quiet' }), 45_000)
+      penWaiters.set(sessionId, (r) => {
+        clearTimeout(timer)
+        resolve(r)
+      })
+      void linesHere(sessionId).then((lines) => post(link, { t: 'pen-ask', sessionId, turn: l.turn ?? 0, lines }, holder))
     })
-    void post(link, { t: 'pen-ask', sessionId }, holder)
-  })
-  penWaiters.delete(sessionId)
-  if (!answer.ok) {
+    penWaiters.delete(sessionId)
+    if (answer.ok || local[sessionId]?.writer === link.cfg.me) return { ok: true }
+    const other = answer.reason === 'gone' ? answer.writer : undefined
+    if (other && other !== holder && other !== link.cfg.me && link.cfg.members.some((x) => x.id === other)) {
+      l.writer = other
+      const f = following.get(sessionId)
+      if (f) f.member = other
+      saveSoon()
+      continue
+    }
     const who = nameOf(link, holder)
-    return { ok: false, error: answer.reason === 'busy' ? `Claude is still working in it for ${who}. Try again when it is done.` : answer.reason === 'gone' ? `${who} no longer shares that chat.` : `${who}'s Loom did not answer. Try again in a moment.` }
+    return {
+      ok: false,
+      error:
+        answer.reason === 'busy'
+          ? `Claude is still working in it for ${who}. Try again when it is done.`
+          : answer.reason === 'coming'
+            ? `${who} has passed it on, and the last of it is still arriving. It becomes yours to write in as soon as it is all here.`
+            : answer.reason === 'gone'
+              ? `${who} no longer shares that chat. Take a copy to carry on from what this PC has.`
+              : `${who}'s Loom did not answer. Try again in a moment.`
+    }
   }
-  // Everything they wrote has to be here before this PC adds to it: the rest of it is on its way.
-  for (let i = 0; i < 300 && local[sessionId].lines < (answer.lines ?? 0); i++) await wait(200)
-  if (local[sessionId].lines < (answer.lines ?? 0)) return { ok: false, error: 'The last of the chat did not arrive. Try again in a moment.' }
-  unfollow(sessionId)
-  l.writer = link.cfg.me
-  save()
-  forgetSession(sessionId)
-  void announce(link)
-  emit()
-  return { ok: true }
+  return { ok: false, error: 'The chat could not be passed on. Try again in a moment.' }
 }
 
 /** A copy of a team chat that is this PC's own from here on: same history, a new id. */

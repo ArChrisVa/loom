@@ -357,6 +357,12 @@ const api = {
     ipcRenderer.on('team:grew', listener)
     return () => ipcRenderer.removeListener('team:grew', listener)
   },
+  /** A chat became this PC's to write in: asked for, or a handover that finished by itself */
+  onTeamMine: (cb: (sessionId: string) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string): void => cb(sessionId)
+    ipcRenderer.on('team:mine', listener)
+    return () => ipcRenderer.removeListener('team:mine', listener)
+  },
   /** A chat this PC wrote in was passed to a teammate */
   onTeamPassed: (cb: (sessionId: string, to: string) => void): (() => void) => {
     const listener = (_e: unknown, sessionId: string, to: string): void => cb(sessionId, to)

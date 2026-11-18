@@ -46,6 +46,8 @@ export interface TeamChat {
   model?: string
   /** The member who started it */
   owner: string
+  /** How many times it has changed hands, as its holder counts them */
+  turn?: number
 }
 
 /** Where a member's copy of a shared project stands in git */
@@ -68,25 +70,30 @@ export type TeamMsg =
    * `ref` names the request: the pieces sent for it carry it, so pieces of an earlier request
    * still on their way are told apart and dropped.
    */
-  | { t: 'want'; sessionId: string; from: number; follow: boolean; ref: string }
+  | { t: 'want'; sessionId: string; from: number; follow: boolean; ref: string; turn?: number }
   /**
    * A piece of a chat's history file, as bytes in base64. `left` is how much follows this piece,
    * `total` the whole file, `root` the project's folder on the sender's PC (paths in the history
    * are under it, and become the receiver's own).
    */
   | { t: 'data'; sessionId: string; ref: string; bytes: string; left: number; total: number; root: string }
-  /** That chat can't be had: it is gone, or kept private */
-  | { t: 'nope'; sessionId: string }
+  /** That chat can't be had from me: it is gone, kept private, or (`writer`) someone else writes in it now */
+  | { t: 'nope'; sessionId: string; writer?: string }
   | { t: 'unfollow'; sessionId: string }
   /** What is happening in a chat right now, for the members following it */
   | { t: 'live'; sessionId: string; ev: ChatEvent }
   /** What I have typed in a chat's message box and not sent yet, for the members following it; empty when the box is */
   | { t: 'typing'; sessionId: string; text: string }
-  /** Let me write in this chat */
-  | { t: 'pen-ask'; sessionId: string }
-  /** It is yours: its history has this many lines */
-  | { t: 'pen-give'; sessionId: string; lines: number }
-  | { t: 'pen-no'; sessionId: string; reason: 'busy' | 'gone' }
+  /** Let me write in this chat. `turn` and `lines`: the last handover of it I know of, and how much of it I have */
+  | { t: 'pen-ask'; sessionId: string; turn?: number; lines?: number }
+  /**
+   * It is yours: its history has this many lines here, and this is the chat's `turn`-th handover.
+   * It becomes the receiver's once those lines are all on their PC, which the giver sends when asked.
+   * The number tells a handover apart from one already seen, so it can be said again safely.
+   */
+  | { t: 'pen-give'; sessionId: string; lines: number; turn?: number }
+  /** `writer`: not mine to give, this member writes in it */
+  | { t: 'pen-no'; sessionId: string; reason: 'busy' | 'gone'; writer?: string }
 
 /** The sealed part of every message between members: the sender's connection and a count that only goes up. */
 export interface TeamEnvelope {
@@ -175,6 +182,10 @@ export interface TeamLocal {
   writer: string
   /** Lines of its history on this PC */
   lines: number
+  /** How many times it has changed hands, as far as this PC knows */
+  turn?: number
+  /** Set on the PC that passed it on: how many lines it had then. Lines written here after that are not part of the chat. */
+  given?: number
 }
 
 /** A history being copied */

@@ -899,6 +899,19 @@ export const useStore = create<Store>((set, get) => {
         )
       }
       window.loom.onTeamGrew(readAgain)
+      // A chat became this PC's to write in: its history is read afresh, and the message box takes the follow bar's place.
+      window.loom.onTeamMine((sessionId) => {
+        const tab = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === sessionId)
+        clearTyping(sessionId)
+        if (!tab) return
+        void get()
+          .reloadHistory(tab.id)
+          .then(() => {
+            patchChat(tab.id, () => ({ opened: false, status: 'idle', error: undefined }))
+            clearLive(tab.id)
+          })
+        get().showToast(`You are writing in ${tab.title} now.`)
+      })
       window.loom.onTeamPassed((sessionId, to) => {
         const tab = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === sessionId)
         if (!tab) return
@@ -2003,11 +2016,8 @@ export const useStore = create<Store>((set, get) => {
       })
       if (choice !== 'take') return
       const r = await window.loom.teamTake(tab.sessionId)
-      if (!r.ok) return get().showToast(r.error ?? 'The chat could not be passed on.')
-      await get().reloadHistory(tabId)
-      patchChat(tabId, () => ({ opened: false, status: 'idle', error: undefined }))
-      clearLive(tabId)
-      get().showToast(`You are writing in ${tab.title} now.`)
+      // When it is this PC's, the window is told (team:mine): that is also how a handover that finishes later shows.
+      if (!r.ok) get().showToast(r.error ?? 'The chat could not be passed on.')
     },
     copyTeamChat: async (tabId) => {
       const tab = get().tabs.find((t) => t.id === tabId)
